@@ -49,7 +49,7 @@ function sizeTag(pt: PartType): string {
   const nums = Object.entries(pt.params)
     .filter(([k, v]) => typeof v === "number" && /Unit|Radius|Over|Up|Out|Length|Width|Depth/.test(k) && !/Height/.test(k))
     .map(([, v]) => String(v));
-  const h = pt.params.Channel_Internal_Height ?? pt.params.Internal_Height;
+  const h = pt.params.Channel_Internal_Height ?? pt.params.Channel_Total_Height ?? pt.params.Internal_Height;
   return [nums.join("x"), h !== undefined ? `h${h}` : ""].filter(Boolean).join("-");
 }
 
@@ -68,7 +68,8 @@ export function rendersFor(board: Board, pt: PartType): PieceRender[] {
   if (!g) return [];
   const base: Record<string, ParamValue> = {};
   for (const spec of g.params) base[spec.name] = pt.params[spec.name] ?? spec.default;
-  const isChannel = g.category === "underware-channel";
+  // QuackWorks channels print as base + top; clip-on pieces are one part.
+  const isChannel = g.category === "underware-channel" && !g.onePiece;
   // Channels space their mount holes by Grid_Size; match the board.
   if (isChannel) base.Grid_Size = board.pitchMm;
   const pieces: RenderJob["piece"][] = isChannel ? ["Base", "Top"] : [null];
@@ -106,7 +107,7 @@ export function buildExportPlan(board: Board, partTypes: PartType[]): ExportPlan
       }
       jobs.set(key, {
         key,
-        name: g.name,
+        name: g.nameFor?.(pt.params) ?? g.name,
         piece,
         scadPath,
         defines,
@@ -115,7 +116,7 @@ export function buildExportPlan(board: Board, partTypes: PartType[]): ExportPlan
         summary: summarize(defines, new Set(["Base_Top_or_Both"])),
       });
       // Remember a tag for naming; computed from the part type.
-      jobs.get(key)!.fileName = [slug(g.name), sizeTag(pt), piece?.toLowerCase()].filter(Boolean).join("_");
+      jobs.get(key)!.fileName = [slug(g.nameFor?.(pt.params) ?? g.name), sizeTag(pt), piece?.toLowerCase()].filter(Boolean).join("_");
     }
   }
 

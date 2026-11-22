@@ -45,7 +45,8 @@ export function SizeCheck({ board, pt, onEnvelope }: { board: Board; pt: PartTyp
   if (res.state === "done") {
     const extraW = res.across - planW - (pt.envelope.leftMm + pt.envelope.rightMm);
     const extraH = res.down - planH - (pt.envelope.topMm + pt.envelope.bottomMm);
-    const under = res.across < fp.wCells * board.pitchMm - TOLERANCE_MM || res.down < fp.hCells * board.pitchMm - TOLERANCE_MM;
+    // Only worth saying when the part would fit in fewer whole cells.
+    const under = (fp.wCells > 1 && res.across < (fp.wCells - 0.5) * board.pitchMm) || (fp.hCells > 1 && res.down < (fp.hCells - 0.5) * board.pitchMm);
     if (extraW > TOLERANCE_MM || extraH > TOLERANCE_MM) {
       const addW = Math.max(0, extraW) / 2;
       const addH = Math.max(0, extraH) / 2;

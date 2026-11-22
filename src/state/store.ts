@@ -62,6 +62,14 @@ function withPlacement(s: State, pt: PartType, extraPartType: boolean, size: { w
   };
 }
 
+/** Apply a patch; a name that was derived from the params follows them. */
+function patchPartType(t: PartType, patch: Partial<PartType>): PartType {
+  const g = generatorById(t.generatorId);
+  const next = { ...t, ...patch };
+  if (g?.nameFor && patch.params && patch.name === undefined && t.name === g.nameFor(t.params)) next.name = g.nameFor(next.params);
+  return next;
+}
+
 const mapPlacement = (s: State, id: string, f: (p: Placement) => Placement): State => ({
   ...s,
   layout: { ...s.layout, board: { ...s.layout.board, placements: s.layout.board.placements.map((p) => (p.id === id ? f(p) : p)) } },
@@ -80,7 +88,7 @@ export function reducer(s: State, a: Action, occupied: (s: State) => { x: number
       const params = defaultParams(g);
       const pt: PartType = {
         id: uid("pt"),
-        name: g.name,
+        name: g.nameFor?.(params) ?? g.name,
         category: g.category,
         color: g.color,
         generatorId: g.id,
@@ -130,7 +138,7 @@ export function reducer(s: State, a: Action, occupied: (s: State) => { x: number
     case "updatePartType":
       return {
         ...s,
-        layout: { ...s.layout, partTypes: s.layout.partTypes.map((t) => (t.id === a.partTypeId ? { ...t, ...a.patch } : t)) },
+        layout: { ...s.layout, partTypes: s.layout.partTypes.map((t) => (t.id === a.partTypeId ? patchPartType(t, a.patch) : t)) },
       };
     case "select":
       return { ...s, selectedId: a.id };

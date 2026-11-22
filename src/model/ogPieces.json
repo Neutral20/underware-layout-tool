@@ -1,0 +1,252 @@
+[
+  {
+    "id": "straight-1",
+    "label": "Straight (1 cell, repeat unit)",
+    "sizeMm": [
+      26.4,
+      28,
+      22
+    ],
+    "triangles": 108
+  },
+  {
+    "id": "curve-1",
+    "label": "Curve, radius 1",
+    "sizeMm": [
+      55.2,
+      55.2,
+      22
+    ],
+    "triangles": 970
+  },
+  {
+    "id": "curve-2",
+    "label": "Curve, radius 2",
+    "sizeMm": [
+      82.4,
+      82.4,
+      22
+    ],
+    "triangles": 1030
+  },
+  {
+    "id": "curve-3",
+    "label": "Curve, radius 3",
+    "sizeMm": [
+      110.4,
+      110.4,
+      22
+    ],
+    "triangles": 1362
+  },
+  {
+    "id": "curve-4",
+    "label": "Curve, radius 4",
+    "sizeMm": [
+      138.4,
+      138.4,
+      22
+    ],
+    "triangles": 1440
+  },
+  {
+    "id": "end-1",
+    "label": "End piece, 1 cell",
+    "sizeMm": [
+      26.4,
+      27.2,
+      22
+    ],
+    "triangles": 164
+  },
+  {
+    "id": "end-2",
+    "label": "End piece, 2 cells",
+    "sizeMm": [
+      26.4,
+      55.2,
+      22
+    ],
+    "triangles": 228
+  },
+  {
+    "id": "open-left",
+    "label": "Open curve, left",
+    "sizeMm": [
+      27.2,
+      55.2,
+      22
+    ],
+    "triangles": 918
+  },
+  {
+    "id": "open-right",
+    "label": "Open curve, right",
+    "sizeMm": [
+      27.2,
+      55.2,
+      22
+    ],
+    "triangles": 918
+  },
+  {
+    "id": "right",
+    "label": "Right turn exit",
+    "sizeMm": [
+      28,
+      55.2,
+      22
+    ],
+    "triangles": 932
+  },
+  {
+    "id": "y1",
+    "label": "1Y",
+    "sizeMm": [
+      27.2,
+      84,
+      22
+    ],
+    "triangles": 996
+  },
+  {
+    "id": "y2",
+    "label": "2Y",
+    "sizeMm": [
+      28,
+      84,
+      22
+    ],
+    "triangles": 1756
+  },
+  {
+    "id": "y1-straight-left",
+    "label": "Straight 1Y, left",
+    "sizeMm": [
+      54.4,
+      84,
+      22
+    ],
+    "triangles": 1476
+  },
+  {
+    "id": "y1-straight-right",
+    "label": "Straight 1Y, right",
+    "sizeMm": [
+      54.4,
+      84,
+      22
+    ],
+    "triangles": 1476
+  },
+  {
+    "id": "y2-straight",
+    "label": "Straight 2Y",
+    "sizeMm": [
+      82.4,
+      84,
+      22
+    ],
+    "triangles": 2908
+  },
+  {
+    "id": "s-jog",
+    "label": "S jog",
+    "sizeMm": [
+      54.4,
+      84,
+      22
+    ],
+    "triangles": 1732
+  },
+  {
+    "id": "x",
+    "label": "X cross",
+    "sizeMm": [
+      84,
+      84,
+      22
+    ],
+    "triangles": 1932
+  },
+  {
+    "id": "x-extreme",
+    "label": "Extreme X (1 cell)",
+    "sizeMm": [
+      28,
+      28,
+      22.2
+    ],
+    "triangles": 32492
+  },
+  {
+    "id": "t",
+    "label": "T",
+    "sizeMm": [
+      55.2,
+      84,
+      22
+    ],
+    "triangles": 1084
+  },
+  {
+    "id": "z-left",
+    "label": "Z (diagonal), left",
+    "sizeMm": [
+      54.4,
+      84,
+      22
+    ],
+    "triangles": 220
+  },
+  {
+    "id": "z-right",
+    "label": "Z (diagonal), right",
+    "sizeMm": [
+      54.4,
+      84,
+      22
+    ],
+    "triangles": 220
+  },
+  {
+    "id": "bridge-1",
+    "label": "Bridge, 1 cell",
+    "sizeMm": [
+      26.4,
+      85.2,
+      40.6
+    ],
+    "triangles": 276
+  },
+  {
+    "id": "bridge-2",
+    "label": "Bridge, 2 cells",
+    "sizeMm": [
+      26.4,
+      112,
+      40.6
+    ],
+    "triangles": 308
+  },
+  {
+    "id": "bridge-open",
+    "label": "Open bridge",
+    "sizeMm": [
+      26.4,
+      56,
+      40.6
+    ],
+    "triangles": 176
+  },
+  {
+    "id": "bridge-half",
+    "label": "Half bridge",
+    "sizeMm": [
+      26.4,
+      42.6,
+      40.6
+    ],
+    "triangles": 160
+  }
+]

@@ -39,8 +39,10 @@ function ParamInput({ spec, value, onChange }: { spec: ParamSpec; value: ParamVa
       <label className="field">
         <span>{spec.label}</span>
         <select value={String(value)} onChange={(e) => onChange(e.target.value)}>
-          {spec.choices!.map((c) => (
-            <option key={c}>{c}</option>
+          {spec.choices!.map((c, i) => (
+            <option key={c} value={c}>
+              {spec.choiceLabels?.[i] ?? c}
+            </option>
           ))}
         </select>
       </label>

@@ -10,6 +10,44 @@ interface Manifest {
   dirs: { src: string; mount: string; files: string[] }[];
 }
 
+// openscad-wasm-prebuilt 1.2.0 is built with a ~128 KB stack. Deeply nested
+// SCADs (BOSL2 attachments inside several modules, e.g. every Monokini
+// channel) overflow it, which silently corrupts memory and surfaces as
+// random "null function", "table index is out of bounds" or similar
+// errors. After startup we allocate a bigger block from the heap and point
+// the stack pointer at its top, so the stack grows down inside that block.
+// The export names below are the minified ones in that exact build
+// (package.json pins it): "cc" is emscripten_builtin_memalign and "fc" is
+// _emscripten_stack_restore.
+const STACK_BYTES = 8 * 1024 * 1024;
+
+async function createWithBigStack(opts: { print(s: string): void; printErr(s: string): void }) {
+  let exportsSeen: Record<string, unknown> | null = null;
+  const original = WebAssembly.instantiate;
+  // Capture the instance's exports as the library instantiates it.
+  (WebAssembly as { instantiate: unknown }).instantiate = async (...args: Parameters<typeof WebAssembly.instantiate>) => {
+    const r = (await (original as (...a: unknown[]) => Promise<unknown>)(...args)) as WebAssembly.WebAssemblyInstantiatedSource | WebAssembly.Instance;
+    exportsSeen = ("instance" in r ? r.instance : r).exports as Record<string, unknown>;
+    return r;
+  };
+  let inst;
+  try {
+    inst = (await createOpenSCAD(opts)).getInstance();
+  } finally {
+    WebAssembly.instantiate = original;
+  }
+  const ex = exportsSeen as Record<string, unknown> | null;
+  const memalign = ex?.cc as ((align: number, size: number) => number) | undefined;
+  const stackRestore = ex?.fc as ((sp: number) => void) | undefined;
+  if (typeof memalign !== "function" || typeof stackRestore !== "function") {
+    throw new Error("Unexpected OpenSCAD build: can't enlarge its stack (check the openscad-wasm-prebuilt version).");
+  }
+  const base = memalign(16, STACK_BYTES);
+  if (!base) throw new Error("Couldn't allocate the OpenSCAD stack.");
+  stackRestore(base + STACK_BYTES);
+  return inst;
+}
+
 let sources: Promise<Map<string, Uint8Array>> | null = null;
 
 // Fetch every SCAD source once per worker and keep it in memory.
@@ -40,7 +78,7 @@ self.onmessage = async (e: MessageEvent<RenderRequest>) => {
     const files = await loadSources(req.scadBase);
     const t0 = performance.now();
     // A fresh instance per job: callMain isn't safe to reuse after exit.
-    const inst = (await createOpenSCAD({ print: (s) => log.push(s), printErr: (s) => log.push(s) })).getInstance();
+    const inst = await createWithBigStack({ print: (s) => log.push(s), printErr: (s) => log.push(s) });
     const FS = inst.FS;
     const mk = (p: string) => {
       try {

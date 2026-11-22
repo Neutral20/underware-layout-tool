@@ -1,11 +1,12 @@
 import type { Resolved } from "../model/geometry";
 import { generatorById, scadUrl, type ParamSpec } from "../model/library";
-import type { Envelope, ParamValue, PartType, Placement } from "../model/types";
+import type { Board, Envelope, ParamValue, PartType, Placement } from "../model/types";
+import { SizeCheck } from "./SizeCheck";
 
 interface Props {
   r: Resolved;
   sharedCount: number;
-  pitchMm: number;
+  board: Board;
   onPlacement(patch: Partial<Placement>): void;
   onPartType(patch: Partial<PartType>): void;
   onRotate(): void;
@@ -73,7 +74,8 @@ const SIDES: [keyof Envelope, string][] = [
   ["depthMm", "Depth"],
 ];
 
-export function Inspector({ r, sharedCount, pitchMm, onPlacement, onPartType, onRotate, onDuplicate, onRemove }: Props) {
+export function Inspector({ r, sharedCount, board, onPlacement, onPartType, onRotate, onDuplicate, onRemove }: Props) {
+  const pitchMm = board.pitchMm;
   const pt = r.partType;
   const g = generatorById(pt.generatorId);
   return (
@@ -118,6 +120,7 @@ export function Inspector({ r, sharedCount, pitchMm, onPlacement, onPartType, on
           {g.params.map((s) => (
             <ParamInput key={s.name} spec={s} value={pt.params[s.name] ?? s.default} onChange={(v) => onPartType({ params: { ...pt.params, [s.name]: v } })} />
           ))}
+          <SizeCheck board={board} pt={pt} onEnvelope={(envelope) => onPartType({ envelope })} />
         </>
       ) : (
         <div className="row">

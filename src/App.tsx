@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { BoardView } from "./components/BoardView";
+import { ExportPanel } from "./components/ExportPanel";
 import { Inspector } from "./components/Inspector";
 import { checkBoard, resolve } from "./model/geometry";
 import { GENERATORS } from "./model/library";
@@ -133,6 +134,8 @@ export default function App() {
           </div>
         </section>
 
+        <ExportPanel board={board} partTypes={partTypes} onMount={(id) => dispatch({ type: "board", patch: { channelMount: id } })} />
+
         <section>
           <h2>File</h2>
           <div className="row buttons">
@@ -190,7 +193,7 @@ export default function App() {
         {selected ? (
           <Inspector
             r={selected}
-            pitchMm={board.pitchMm}
+            board={board}
             sharedCount={board.placements.filter((p) => p.partTypeId === selected.partType.id).length}
             onPlacement={(patch) => dispatch({ type: "updatePlacement", placementId: selected.placement.id, patch })}
             onPartType={(patch) => dispatch({ type: "updatePartType", partTypeId: selected.partType.id, patch })}

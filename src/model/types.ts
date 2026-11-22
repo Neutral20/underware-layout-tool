@@ -29,6 +29,8 @@ export interface Board {
   /** Grid pitch in mm. openGrid is 28, Multiboard (stock Underware) is 25. */
   pitchMm: number;
   tile: TileSpec;
+  /** How channels attach (see render/mounts.ts). Missing means the default. */
+  channelMount?: string;
   placements: Placement[];
 }
 

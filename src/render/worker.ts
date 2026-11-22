@@ -6,8 +6,8 @@ import { createOpenSCAD } from "openscad-wasm-prebuilt";
 import { scadLiteral, type RenderRequest, type RenderResponse } from "./types";
 
 interface Manifest {
-  bosl2: string[];
-  underware: string[];
+  /** Fetched from <scadBase><src>/<file>, written to <mount>/<file>. */
+  dirs: { src: string; mount: string; files: string[] }[];
 }
 
 let sources: Promise<Map<string, Uint8Array>> | null = null;
@@ -23,10 +23,9 @@ function loadSources(base: string): Promise<Map<string, Uint8Array>> {
     };
     const manifest: Manifest = JSON.parse(new TextDecoder().decode(await get("manifest.json")));
     const files = new Map<string, Uint8Array>();
-    await Promise.all([
-      ...manifest.bosl2.map(async (f) => files.set(`/libraries/BOSL2/${f}`, await get(`BOSL2/${f}`))),
-      ...manifest.underware.map(async (f) => files.set(`/Underware/${f}`, await get(`Underware/${f}`))),
-    ]);
+    await Promise.all(
+      manifest.dirs.flatMap((d) => d.files.map(async (f) => files.set(`${d.mount}/${f}`, await get(`${d.src}/${f}`)))),
+    );
     return files;
   })();
   sources.catch(() => (sources = null)); // let a later job retry
@@ -50,12 +49,13 @@ self.onmessage = async (e: MessageEvent<RenderRequest>) => {
         /* exists */
       }
     };
-    mk("/libraries");
-    mk("/libraries/BOSL2");
-    mk("/Underware");
-    for (const [p, data] of files) FS.writeFile(p, data);
+    for (const [p, data] of files) {
+      const parts = p.split("/").slice(1, -1);
+      for (let i = 1; i <= parts.length; i++) mk("/" + parts.slice(0, i).join("/"));
+      FS.writeFile(p, data);
+    }
 
-    const args = [`/Underware/${req.scadFile}`, "-o", "/out.stl", "--export-format=binstl", "--backend=manifold"];
+    const args = [req.scadPath, "-o", "/out.stl", "--export-format=binstl", "--backend=manifold"];
     for (const [k, v] of Object.entries(req.defines)) args.push("-D", `${k}=${scadLiteral(v)}`);
 
     let rc: number;
@@ -84,5 +84,8 @@ self.onmessage = async (e: MessageEvent<RenderRequest>) => {
 };
 
 function lastErrors(log: string[]) {
+  if (log.some((l) => /RuntimeError|is not a function|signature mismatch/.test(l))) {
+    return "OpenSCAD crashed on this part in the browser (a WASM limitation, not a problem with your layout). Try another mounting option for it.";
+  }
   return log.filter((l) => /ERROR|Assertion|failed/i.test(l)).slice(-3).join("\n");
 }

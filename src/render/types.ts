@@ -2,7 +2,8 @@ export interface RenderRequest {
   id: number;
   /** URL prefix where public/scad is served, ending in "/". */
   scadBase: string;
-  scadFile: string;
+  /** Absolute path in the OpenSCAD file system, e.g. "/Underware/Underware_I_Channel.scad". */
+  scadPath: string;
   defines: Record<string, number | string | boolean>;
 }
 

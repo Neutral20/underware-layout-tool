@@ -135,7 +135,8 @@ module curvedChannelBase(radiusMM, widthMM, anchor, spin, orient){
         left((Grid_Size + channelWidth + (radiusMM - channelWidth/2))/2) 
         down(baseHeight/2)
             diff("holes"){
-                path_sweep(baseProfile(widthMM = widthMM), turtle(["move", Grid_Size, "arcleft", radiusMM, 90, "move", Grid_Size])) {
+                path_sweep(baseProfile(widthMM = widthMM), turtle(["move", Grid_Size, "arcleft", radiusMM, 90, "move", Grid_Size]));
+                {
                     tag("holes") ycopies(spacing = Grid_Size, n = Channel_Width_in_Units) right(Grid_Size/2) down(0.01) 
                         if(Mounting_Method == "Direct Multiboard Screw") up(Base_Screw_Hole_Inner_Depth) cyl(h=8, d=Base_Screw_Hole_Inner_Diameter, $fn=25, anchor=TOP) attach(TOP, BOT, overlap=0.01) cyl(h=3, d=Base_Screw_Hole_Outer_Diameter, $fn=25);
                         else if(Mounting_Method == "Magnet") up(Magnet_Thickness+Magnet_Tolerance-0.01) cyl(h=Magnet_Thickness+Magnet_Tolerance, d=Magnet_Diameter+Magnet_Tolerance, $fn=50, anchor=TOP);

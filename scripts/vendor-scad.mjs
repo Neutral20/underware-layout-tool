@@ -56,10 +56,35 @@ fs.copyFileSync(path.join(bosl, "LICENSE"), `${out}/BOSL2/LICENSE`);
 for (const f of UNDERWARE) fs.copyFileSync(path.join(quack, "Underware", f), `${out}/Underware/${f}`);
 fs.copyFileSync(path.join(quack, "LICENSE"), `${out}/Underware/LICENSE`);
 
+// Small source patches so the SCADs render in OpenSCAD WASM. Each one must
+// leave the geometry unchanged (checked by rendering before and after).
+const PATCHES = [
+  {
+    // The mount holes were children of path_sweep(). With threaded snap
+    // holes that crashes WASM OpenSCAD ("null function or function signature
+    // mismatch"). Making them siblings inside the same diff() gives a
+    // byte-identical STL for the Magnet option and fixes the threaded one.
+    file: "Underware_C_Channel.scad",
+    from: 'turtle(["move", Grid_Size, "arcleft", radiusMM, 90, "move", Grid_Size])) {',
+    to: 'turtle(["move", Grid_Size, "arcleft", radiusMM, 90, "move", Grid_Size]));\n                {',
+  },
+];
+for (const p of PATCHES) {
+  const f = `${out}/Underware/${p.file}`;
+  const src = fs.readFileSync(f, "utf8");
+  if (src.split(p.from).length !== 2) throw new Error(`patch for ${p.file} no longer applies`);
+  fs.writeFileSync(f, src.replace(p.from, p.to));
+}
+
+// Each dir is fetched from public/scad/<src>/ and written to <mount> in the
+// OpenSCAD file system. A new part source (e.g. an openGrid clip-in mount)
+// is one more entry here.
 const manifest = {
   pins: PINS,
-  bosl2: [...boslFiles].sort(),
-  underware: UNDERWARE,
+  dirs: [
+    { src: "BOSL2", mount: "/libraries/BOSL2", files: [...boslFiles].sort() },
+    { src: "Underware", mount: "/Underware", files: UNDERWARE },
+  ],
 };
 fs.writeFileSync(`${out}/manifest.json`, JSON.stringify(manifest, null, 2) + "\n");
 console.log(`vendored ${boslFiles.size} BOSL2 files and ${UNDERWARE.length} Underware files`);

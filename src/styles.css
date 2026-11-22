@@ -110,3 +110,13 @@ line.seam { stroke: var(--seam); stroke-width: 1.4; stroke-dasharray: 6 3; }
 .jobs li.failed { border-left: 3px solid var(--error); }
 .jobs .error-text { width: 100%; white-space: pre-wrap; }
 button:disabled { opacity: 0.5; cursor: default; }
+
+.size-check {
+  margin: 10px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.size-check h4 {
+  margin-top: 0;
+}

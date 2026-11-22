@@ -44,6 +44,14 @@ export interface Generator {
   name: string;
   category: Category;
   scadFile: string;
+  /** Folder the SCAD is vendored into under public/scad (default "Underware"). */
+  scadDir?: string;
+  /**
+   * Which two axes of the rendered STL lie flat on the board, as [across,
+   * down] before rotation. Channels print flat ("xy"); item holders print
+   * standing on their backer, so the board face is X by Z.
+   */
+  boardAxes?: "xy" | "xz";
   color: string;
   params: ParamSpec[];
   footprint(p: Record<string, ParamValue>, pitchMm: number): Footprint;
@@ -53,6 +61,8 @@ export interface Generator {
 
 const UW_BASE = "https://github.com/AndyLevesque/QuackWorks/blob/main/Underware/";
 export const scadUrl = (g: Generator) => UW_BASE + g.scadFile;
+/** Where the renderer finds the SCAD in its file system. */
+export const scadPath = (g: Generator) => `/${g.scadDir ?? "Underware"}/${g.scadFile}`;
 
 const int = (v: ParamValue | undefined, d = 1) => {
   const n = Math.round(Number(v));
@@ -266,12 +276,19 @@ export const GENERATORS: Generator[] = [
     }),
     approx: true,
   },
-  {
-    id: "uw-item",
-    name: "Item holder",
+  itemHolder("uw-item", "Item holder", "Underware_Item_Holder.scad", "#a855f7"),
+];
+
+// Item holder. Kept as a factory so other holder SCADs with the same
+// backer can reuse it.
+function itemHolder(id: string, name: string, scadFile: string, color: string): Generator {
+  return {
+    id,
+    name,
     category: "underware-item",
-    scadFile: "Underware_Item_Holder.scad",
-    color: "#a855f7",
+    scadFile,
+    color,
+    boardAxes: "xz",
     params: [
       { name: "Internal_Width", label: "Internal width (mm)", kind: "number", default: 60, min: 5, max: 600, step: 0.1 },
       { name: "Internal_Depth", label: "Internal depth (mm)", kind: "number", default: 50, min: 5, max: 600, step: 0.1 },
@@ -289,8 +306,8 @@ export const GENERATORS: Generator[] = [
     },
     approx: true,
     notes: "Mount is the whole cells under the backer. Overhang is split evenly left/right and top/bottom.",
-  },
-];
+  };
+}
 
 /** Whole cells fully covered by a body, with the leftover as envelope. */
 export function cellsWithEnvelope(bodyWMm: number, bodyHMm: number, pitch: number, depthMm = 0): Footprint {

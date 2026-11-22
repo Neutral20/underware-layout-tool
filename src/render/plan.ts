@@ -1,7 +1,8 @@
 // Turns a layout into the list of renders needed to print it. Pure, so
 // it can be unit tested without OpenSCAD.
 
-import { generatorById } from "../model/library";
+import { generatorById, scadPath } from "../model/library";
+import { mountById } from "./mounts";
 import type { Board, ParamValue, PartType } from "../model/types";
 
 export interface RenderJob {
@@ -10,7 +11,7 @@ export interface RenderJob {
   name: string;
   /** "Base" or "Top" for two-piece channels, null for one-piece parts. */
   piece: "Base" | "Top" | null;
-  scadFile: string;
+  scadPath: string;
   defines: Record<string, ParamValue>;
   quantity: number;
   fileName: string;
@@ -52,6 +53,33 @@ function sizeTag(pt: PartType): string {
   return [nums.join("x"), h !== undefined ? `h${h}` : ""].filter(Boolean).join("-");
 }
 
+export interface PieceRender {
+  piece: RenderJob["piece"];
+  scadPath: string;
+  defines: Record<string, ParamValue>;
+}
+
+export const renderKey = (scadPath: string, defines: Record<string, ParamValue>) =>
+  scadPath + JSON.stringify(Object.entries(defines).sort(([a], [b]) => a.localeCompare(b)));
+
+/** The renders one generated part type needs: base + top for channels, one for the rest. */
+export function rendersFor(board: Board, pt: PartType): PieceRender[] {
+  const g = generatorById(pt.generatorId);
+  if (!g) return [];
+  const base: Record<string, ParamValue> = {};
+  for (const spec of g.params) base[spec.name] = pt.params[spec.name] ?? spec.default;
+  const isChannel = g.category === "underware-channel";
+  // Channels space their mount holes by Grid_Size; match the board.
+  if (isChannel) base.Grid_Size = board.pitchMm;
+  const pieces: RenderJob["piece"][] = isChannel ? ["Base", "Top"] : [null];
+  const mount = mountById(board.channelMount);
+  return pieces.map((piece) => {
+    let r = { scadPath: scadPath(g), defines: piece ? { ...base, Base_Top_or_Both: piece } : base };
+    if (isChannel) r = mount.channel(r);
+    return { piece, ...r };
+  });
+}
+
 export function buildExportPlan(board: Board, partTypes: PartType[]): ExportPlan {
   const counts = new Map<string, number>();
   for (const p of board.placements) counts.set(p.partTypeId, (counts.get(p.partTypeId) ?? 0) + 1);
@@ -69,15 +97,8 @@ export function buildExportPlan(board: Board, partTypes: PartType[]): ExportPlan
       manual.set(pt.name, m);
       continue;
     }
-    const base: Record<string, ParamValue> = {};
-    for (const spec of g.params) base[spec.name] = pt.params[spec.name] ?? spec.default;
-    const isChannel = g.category === "underware-channel";
-    // Channels space their mount holes by Grid_Size; match the board.
-    if (isChannel) base.Grid_Size = board.pitchMm;
-    const pieces: (RenderJob["piece"])[] = isChannel ? ["Base", "Top"] : [null];
-    for (const piece of pieces) {
-      const defines = piece ? { ...base, Base_Top_or_Both: piece } : base;
-      const key = g.scadFile + JSON.stringify(Object.entries(defines).sort(([a], [b]) => a.localeCompare(b)));
+    for (const { piece, scadPath, defines } of rendersFor(board, pt)) {
+      const key = renderKey(scadPath, defines);
       const existing = jobs.get(key);
       if (existing) {
         existing.quantity += qty;
@@ -87,7 +108,7 @@ export function buildExportPlan(board: Board, partTypes: PartType[]): ExportPlan
         key,
         name: g.name,
         piece,
-        scadFile: g.scadFile,
+        scadPath,
         defines,
         quantity: qty,
         fileName: "",

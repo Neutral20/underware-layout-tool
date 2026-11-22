@@ -1,7 +1,8 @@
 import { zipSync, strToU8 } from "fflate";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { buildExportPlan, partsCsv, type RenderJob } from "../render/plan";
-import { RenderPool } from "../render/renderer";
+import { MOUNT_STYLES, mountById } from "../render/mounts";
+import { cancelAll, render } from "../render/service";
 import type { Board, PartType } from "../model/types";
 
 type Status = { state: "queued" } | { state: "rendering" } | { state: "done"; ms: number; bytes: number } | { state: "failed"; error: string };
@@ -16,27 +17,32 @@ parts.csv lists each file, how many to print, and the parameters used.
 File names end in _xN where N is the quantity to print.
 `;
 
-const scadBase = () => new URL("scad/", document.baseURI).href;
+interface Props {
+  board: Board;
+  partTypes: PartType[];
+  onMount(id: string): void;
+}
 
-export function ExportPanel({ board, partTypes }: { board: Board; partTypes: PartType[] }) {
+export function ExportPanel({ board, partTypes, onMount }: Props) {
   const plan = useMemo(() => buildExportPlan(board, partTypes), [board, partTypes]);
   const [running, setRunning] = useState(false);
   const [status, setStatus] = useState<Record<string, Status>>({});
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
-  const poolRef = useRef<RenderPool | null>(null);
+  const mount = mountById(board.channelMount);
+  const hasChannels = partTypes.some((t) => t.category === "underware-channel" && board.placements.some((p) => p.partTypeId === t.id));
+  const blocked = hasChannels && !mount.available;
 
   useEffect(() => {
     if (!running) return;
     const t = setInterval(() => setNow(Date.now()), 500);
     return () => clearInterval(t);
   }, [running]);
-  useEffect(() => () => poolRef.current?.dispose(), []);
+  useEffect(() => () => cancelAll(), []);
 
   const totalPieces = plan.jobs.reduce((n, j) => n + j.quantity, 0);
 
   const run = async () => {
-    const pool = (poolRef.current ??= new RenderPool());
     setRunning(true);
     setStartedAt(Date.now());
     setStatus(Object.fromEntries(plan.jobs.map((j) => [j.key, { state: "queued" } as Status])));
@@ -46,7 +52,7 @@ export function ExportPanel({ board, partTypes }: { board: Board; partTypes: Par
 
     await Promise.all(
       plan.jobs.map(async (j: RenderJob) => {
-        const r = await pool.render({ scadBase: scadBase(), scadFile: j.scadFile, defines: j.defines }, () =>
+        const r = await render(j.scadPath, j.defines, () =>
           setStatus((s) => ({ ...s, [j.key]: { state: "rendering" } })),
         );
         if (r.ok) {
@@ -79,10 +85,7 @@ export function ExportPanel({ board, partTypes }: { board: Board; partTypes: Par
     setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
   };
 
-  const cancel = () => {
-    poolRef.current?.dispose();
-    poolRef.current = null;
-  };
+  const cancel = () => cancelAll();
 
   const done = Object.values(status).filter((s) => s.state === "done" || s.state === "failed").length;
 
@@ -95,18 +98,30 @@ export function ExportPanel({ board, partTypes }: { board: Board; partTypes: Par
         <>
           <p className="muted">
             {plan.jobs.length} unique STL{plan.jobs.length === 1 ? "" : "s"} to render, {totalPieces} pieces to print.
-            {board.pitchMm === 28 ? " Channels render with 28 mm hole spacing for openGrid." : ""}
+            {board.pitchMm === 28 ? " Channels render at the 28 mm openGrid pitch." : ""} Renders already done this session are reused.
           </p>
           {plan.manual.length ? (
             <p className="muted">Custom parts aren't generated: {plan.manual.map((m) => `${m.name} ×${m.quantity}`).join(", ")}.</p>
           ) : null}
+          <label className="field">
+            <span>Channel mount</span>
+            <select value={mount.id} onChange={(e) => onMount(e.target.value)} disabled={running}>
+              {MOUNT_STYLES.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                  {m.available ? "" : " (not available yet)"}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className={blocked ? "error-text" : "muted"}>{mount.note}</p>
           <div className="row buttons">
             {running ? (
               <button className="danger" onClick={cancel}>
                 Cancel
               </button>
             ) : (
-              <button onClick={run} disabled={plan.jobs.length === 0}>
+              <button onClick={run} disabled={plan.jobs.length === 0 || blocked}>
                 Generate STL zip
               </button>
             )}

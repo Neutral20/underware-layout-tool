@@ -11,6 +11,14 @@ npm test         # unit tests for fit checks and part footprints
 npm run build    # static build in dist/
 ```
 
+## Hosting on GitHub Pages
+
+`.github/workflows/deploy-pages.yml` runs the tests, builds, and deploys `dist/` to GitHub Pages on every push to `main` (or by hand from the Actions tab). The site lives at `https://neutral20.github.io/underware-layout-tool/`.
+
+The build uses a relative base (`base: "./"` in `vite.config.ts`), and the SCAD sources are fetched relative to the page, so the same build works under the repo subpath, at a custom domain root, or from a plain folder. OpenSCAD WASM is bundled into the render worker, so there is no extra file to serve.
+
+One-time setup: in the repo, **Settings → Pages → Build and deployment → Source**, pick **GitHub Actions**. On a free GitHub plan Pages needs the repo to be public.
+
 ## What's in v1
 
 - Board in cells (default 21×60), grid pitch 28 mm (openGrid) or 25 mm (Multiboard), tile seams drawn every N cells.
@@ -54,3 +62,4 @@ Parametric clip-on channels: [Monokini](https://github.com/pleite/Monokini) by P
 Clip-on channels: [Underware for openGrid](https://www.printables.com/model/1214427-underware-for-opengrid-manage-your-cables-lite-ly) by David D, CC BY-NC-SA 4.0. The meshes are vendored in `public/scad/openGridUnderware/pieces`.
 
 Part generators are the [QuackWorks](https://github.com/AndyLevesque/QuackWorks) Underware 2.0 SCADs by Hands on Katie and BlackjackDuck (Andy Levesque), licensed CC BY-NC-SA 4.0. Copies of the SCADs are vendored in `public/scad/Underware` under that licence, along with [BOSL2](https://github.com/BelfrySCAD/BOSL2) (BSD 2-clause).
+Part generators are the [QuackWorks](https://github.com/AndyLevesque/QuackWorks) Underware 2.0 SCADs by Hands on Katie and BlackjackDuck (Andy Levesque), licensed CC BY-NC-SA 4.0. The openGrid clip-on channels are David D's Underware for openGrid, with parametric versions from Pedro Leite's [Monokini](https://github.com/pleite/Monokini) (CC BY-NC-SA 4.0). This tool is shared under the same terms: free to use and remix with credit, non-commercial, changes shared alike. Copies of the SCADs are vendored in `public/scad/Underware` under that licence, along with [BOSL2](https://github.com/BelfrySCAD/BOSL2) (BSD 2-clause).

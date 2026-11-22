@@ -103,6 +103,7 @@ export function ExportPanel({ board, partTypes, onMount }: Props) {
           {plan.manual.length ? (
             <p className="muted">Custom parts aren't generated: {plan.manual.map((m) => `${m.name} ×${m.quantity}`).join(", ")}.</p>
           ) : null}
+          {MOUNT_STYLES.length > 1 ? (
           <label className="field">
             <span>Channel mount</span>
             <select value={mount.id} onChange={(e) => onMount(e.target.value)} disabled={running}>
@@ -114,7 +115,8 @@ export function ExportPanel({ board, partTypes, onMount }: Props) {
               ))}
             </select>
           </label>
-          <p className={blocked ? "error-text" : "muted"}>{mount.note}</p>
+          ) : null}
+          {blocked ? <p className="error-text">{mount.note}</p> : null}
           <div className="row buttons">
             {running ? (
               <button className="danger" onClick={cancel}>

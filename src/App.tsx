@@ -3,7 +3,7 @@ import { BoardView } from "./components/BoardView";
 import { ExportPanel } from "./components/ExportPanel";
 import { Inspector } from "./components/Inspector";
 import { checkBoard, resolve } from "./model/geometry";
-import { GENERATORS } from "./model/library";
+import { GENERATORS, OG_GENERATORS } from "./model/library";
 import { loadSaved, newLayout, parseLayout, reducer, save, type Action, type State } from "./state/store";
 
 function init(): State {
@@ -119,7 +119,20 @@ export default function App() {
         </section>
 
         <section>
-          <h2>Add Underware part</h2>
+          <h2>Add clip-on part (openGrid)</h2>
+          <div className="library">
+            {OG_GENERATORS.map((g) => (
+              <button key={g.id} onClick={() => dispatch({ type: "addFromGenerator", generatorId: g.id })} title={g.notes}>
+                <span className="swatch" style={{ background: g.color }} />
+                {g.name}
+              </button>
+            ))}
+          </div>
+          <p className="muted">One-piece channels that snap onto the grid. Pick the piece in the panel on the right.</p>
+        </section>
+
+        <section>
+          <h2>Add Underware 2.0 part (QuackWorks)</h2>
           <div className="library">
             {GENERATORS.map((g) => (
               <button key={g.id} onClick={() => dispatch({ type: "addFromGenerator", generatorId: g.id })} title={g.scadFile}>

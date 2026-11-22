@@ -7,6 +7,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
+import { writeManifest } from "./scad-manifest.mjs";
 
 const PINS = {
   BOSL2: "1351a9f7e5f30a95228e580d167fd4f2e184ad2c",
@@ -48,7 +49,9 @@ while (todo.length) {
 }
 
 const out = "public/scad";
-fs.rmSync(out, { recursive: true, force: true });
+// Only this script's folders; other vendored sources (openGridUnderware) stay.
+fs.rmSync(`${out}/BOSL2`, { recursive: true, force: true });
+fs.rmSync(`${out}/Underware`, { recursive: true, force: true });
 fs.mkdirSync(`${out}/BOSL2`, { recursive: true });
 fs.mkdirSync(`${out}/Underware`, { recursive: true });
 for (const f of boslFiles) fs.copyFileSync(path.join(bosl, f), `${out}/BOSL2/${f}`);
@@ -76,15 +79,5 @@ for (const p of PATCHES) {
   fs.writeFileSync(f, src.replace(p.from, p.to));
 }
 
-// Each dir is fetched from public/scad/<src>/ and written to <mount> in the
-// OpenSCAD file system. A new part source (e.g. an openGrid clip-in mount)
-// is one more entry here.
-const manifest = {
-  pins: PINS,
-  dirs: [
-    { src: "BOSL2", mount: "/libraries/BOSL2", files: [...boslFiles].sort() },
-    { src: "Underware", mount: "/Underware", files: UNDERWARE },
-  ],
-};
-fs.writeFileSync(`${out}/manifest.json`, JSON.stringify(manifest, null, 2) + "\n");
+writeManifest(PINS);
 console.log(`vendored ${boslFiles.size} BOSL2 files and ${UNDERWARE.length} Underware files`);

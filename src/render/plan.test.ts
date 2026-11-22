@@ -80,3 +80,26 @@ describe("stlBounds", () => {
     expect(stlBounds(buf)).toBeNull();
   });
 });
+
+describe("openGrid clip-on parts", () => {
+  it("straight is one piece, footprint 1 x length, no Grid_Size", () => {
+    const plan = buildExportPlan(board(["s"]), [fromGen("s", "og-straight", { Length_Units: 7 })]);
+    expect(plan.jobs).toHaveLength(1);
+    expect(plan.jobs[0]).toMatchObject({ piece: null, scadPath: "/openGridUnderware/openGrid_Underware.scad", defines: { Length_Units: 7 } });
+    expect(plan.jobs[0].fileName).toBe("clip-on-straight_7_x1.stl");
+    expect(generatorById("og-straight")!.footprint({ Length_Units: 7 }, 28)).toMatchObject({ wCells: 1, hCells: 7 });
+  });
+
+  it("fixed pieces take their footprint from the mesh size", () => {
+    const g = generatorById("og-piece")!;
+    expect(g.footprint({ Piece: "curve-2" }, 28)).toMatchObject({ wCells: 3, hCells: 3 }); // 82.4 mm
+    expect(g.footprint({ Piece: "x" }, 28)).toMatchObject({ wCells: 3, hCells: 3 });
+    // 85.2 mm bridge: 3 cells plus 0.6 mm each end
+    expect(g.footprint({ Piece: "bridge-1" }, 28)).toMatchObject({ wCells: 1, hCells: 3, envelope: { topMm: 0.6, bottomMm: 0.6, depthMm: 40.6 } });
+  });
+
+  it("names files after the chosen piece", () => {
+    const plan = buildExportPlan(board(["a", "b"]), [fromGen("a", "og-piece", { Piece: "t" }), fromGen("b", "og-piece", { Piece: "curve-1" })]);
+    expect(plan.jobs.map((j) => j.fileName)).toEqual(["clip-on-t_x1.stl", "clip-on-curve-radius-1_x1.stl"]);
+  });
+});

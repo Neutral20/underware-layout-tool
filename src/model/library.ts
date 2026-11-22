@@ -18,6 +18,7 @@
 // Licence of the SCADs: CC BY-NC-SA 4.0 (Hands on Katie / BlackjackDuck).
 
 import type { Category, Envelope, ParamValue } from "./types";
+import OG_PIECES from "./ogPieces.json";
 
 export interface ParamSpec {
   name: string;
@@ -28,6 +29,8 @@ export interface ParamSpec {
   max?: number;
   step?: number;
   choices?: string[];
+  /** Display text for each choice, when it differs from the value. */
+  choiceLabels?: string[];
   /** Only shown, never sent to the footprint math. */
   hint?: string;
 }
@@ -57,10 +60,16 @@ export interface Generator {
   footprint(p: Record<string, ParamValue>, pitchMm: number): Footprint;
   approx?: boolean;
   notes?: string;
+  /** One printed piece. Otherwise channels render as separate base and top. */
+  onePiece?: boolean;
+  /** Where the SCAD came from, for the inspector link. */
+  sourceUrl?: string;
+  /** Part name that follows the params (e.g. the chosen piece). */
+  nameFor?(p: Record<string, ParamValue>): string;
 }
 
 const UW_BASE = "https://github.com/AndyLevesque/QuackWorks/blob/main/Underware/";
-export const scadUrl = (g: Generator) => UW_BASE + g.scadFile;
+export const scadUrl = (g: Generator) => g.sourceUrl ?? UW_BASE + g.scadFile;
 /** Where the renderer finds the SCAD in its file system. */
 export const scadPath = (g: Generator) => `/${g.scadDir ?? "Underware"}/${g.scadFile}`;
 
@@ -279,6 +288,64 @@ export const GENERATORS: Generator[] = [
   itemHolder("uw-item", "Item holder", "Underware_Item_Holder.scad", "#a855f7"),
 ];
 
+// Underware for openGrid (David D): one-piece channels that clip straight
+// onto the openGrid bars. Fixed pieces from the original 3MF, plus
+// straights of any length built from the 1-cell straight. Sizes are the
+// real mesh sizes, so these footprints are exact (for a 28 mm grid).
+const OG_URL = "https://www.printables.com/model/1214427-underware-for-opengrid-manage-your-cables-lite-ly";
+const OG_NOTE = "Underware for openGrid by David D. Sized for openGrid's 28 mm grid.";
+
+interface OgPiece {
+  id: string;
+  label: string;
+  sizeMm: number[];
+}
+const ogPieces = (OG_PIECES as OgPiece[]).filter((p) => p.id !== "straight-1");
+const ogPiece = (id: ParamValue | undefined) => ogPieces.find((p) => p.id === id) ?? ogPieces[0];
+
+/** Cells a fixed-size piece covers (nearest whole cells), with any excess as envelope. */
+export function fixedFootprint(wMm: number, hMm: number, depthMm: number, pitch: number): Footprint {
+  const wCells = Math.max(1, Math.round(wMm / pitch));
+  const hCells = Math.max(1, Math.round(hMm / pitch));
+  const r = (n: number) => Math.round(Math.max(0, n) * 10) / 10;
+  const exW = r((wMm - wCells * pitch) / 2);
+  const exH = r((hMm - hCells * pitch) / 2);
+  return { wCells, hCells, envelope: { leftMm: exW, rightMm: exW, topMm: exH, bottomMm: exH, depthMm } };
+}
+
+export const OG_GENERATORS: Generator[] = [
+  {
+    id: "og-straight",
+    name: "Clip-on straight",
+    category: CHANNEL,
+    scadDir: "openGridUnderware",
+    scadFile: "openGrid_Underware.scad",
+    sourceUrl: OG_URL,
+    color: "#0d9488",
+    onePiece: true,
+    params: [{ name: "Length_Units", label: "Length (cells)", kind: "int", default: 5, min: 1, max: 30 }],
+    footprint: (p, pitch) => fixedFootprint(26.4, int(p.Length_Units, 5) * 28, 22, pitch),
+    notes: OG_NOTE,
+  },
+  {
+    id: "og-piece",
+    name: "Clip-on piece",
+    category: CHANNEL,
+    scadDir: "openGridUnderware",
+    scadFile: "openGrid_Underware.scad",
+    sourceUrl: OG_URL,
+    color: "#0891b2",
+    onePiece: true,
+    params: [{ name: "Piece", label: "Piece", kind: "choice", default: "curve-1", choices: ogPieces.map((p) => p.id), choiceLabels: ogPieces.map((p) => p.label) }],
+    footprint: (p, pitch) => {
+      const [w, h, d] = ogPiece(p.Piece).sizeMm;
+      return fixedFootprint(w, h, d, pitch);
+    },
+    nameFor: (p) => `Clip-on ${ogPiece(p.Piece).label.toLowerCase()}`,
+    notes: OG_NOTE,
+  },
+];
+
 // Item holder. Kept as a factory so other holder SCADs with the same
 // backer can reuse it.
 function itemHolder(id: string, name: string, scadFile: string, color: string): Generator {
@@ -323,7 +390,8 @@ export function cellsWithEnvelope(bodyWMm: number, bodyHMm: number, pitch: numbe
   };
 }
 
-export const generatorById = (id?: string) => GENERATORS.find((g) => g.id === id);
+export const ALL_GENERATORS: Generator[] = [...GENERATORS, ...OG_GENERATORS];
+export const generatorById = (id?: string) => ALL_GENERATORS.find((g) => g.id === id);
 
 export function defaultParams(g: Generator): Record<string, ParamValue> {
   return Object.fromEntries(g.params.map((s) => [s.name, s.default]));

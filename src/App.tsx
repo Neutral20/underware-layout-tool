@@ -163,6 +163,20 @@ export default function App() {
           />
           {loadError ? <p className="error-text">{loadError}</p> : <p className="muted">Autosaves in this browser.</p>}
         </section>
+
+        <footer className="credits">
+          <p>
+            Underware by <a href="https://www.youtube.com/@HandsOnKatie" target="_blank" rel="noreferrer">Hands on Katie</a> and{" "}
+            <a href="https://github.com/AndyLevesque/QuackWorks" target="_blank" rel="noreferrer">BlackjackDuck (Andy Levesque)</a>.
+            Underware for openGrid by David D. Parametric openGrid channels by{" "}
+            <a href="https://github.com/pleite/Monokini" target="_blank" rel="noreferrer">Pedro Leite</a>.
+          </p>
+          <p>
+            The part designs and this tool are shared under{" "}
+            <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank" rel="noreferrer">CC BY-NC-SA 4.0</a>: free to
+            use and remix with credit, not for commercial use, and changes shared under the same terms.
+          </p>
+        </footer>
       </aside>
 
       <main className="canvas">

@@ -81,6 +81,12 @@ export function rendersFor(board: Board, pt: PartType): PieceRender[] {
   });
 }
 
+/** Render key for the piece whose outline stands for the part (the base, for two-piece channels). */
+export function outlineKey(board: Board, pt: PartType): string | null {
+  const piece = rendersFor(board, pt)[0];
+  return piece ? renderKey(piece.scadPath, piece.defines) : null;
+}
+
 export function buildExportPlan(board: Board, partTypes: PartType[]): ExportPlan {
   const counts = new Map<string, number>();
   for (const p of board.placements) counts.set(p.partTypeId, (counts.get(p.partTypeId) ?? 0) + 1);

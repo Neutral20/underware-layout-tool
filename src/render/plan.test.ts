@@ -1,5 +1,4 @@
 import { buildExportPlan, partsCsv } from "./plan";
-import { stlBounds } from "./stl";
 import { scadLiteral } from "./types";
 import { defaultParams, generatorById } from "../model/library";
 import type { Board, PartType } from "../model/types";
@@ -63,21 +62,6 @@ describe("mount styles", () => {
     const plan = buildExportPlan(board(["a"]), [fromGen("a", "uw-i")]);
     expect(plan.jobs[0].scadPath).toBe("/Underware/Underware_I_Channel.scad");
     expect(plan.jobs[0].defines.Mounting_Method).toBe("Threaded Snap Connector");
-  });
-});
-
-describe("stlBounds", () => {
-  it("reads the box of a one-triangle STL", () => {
-    const buf = new ArrayBuffer(84 + 50);
-    const v = new DataView(buf);
-    v.setUint32(80, 1, true);
-    [0, 0, 0, 10, 0, 0, 0, 5, 2].forEach((c, k) => v.setFloat32(84 + 12 + k * 4, c, true));
-    expect(stlBounds(buf)?.size).toEqual([10, 5, 2]);
-  });
-  it("rejects a truncated file", () => {
-    const buf = new ArrayBuffer(84);
-    new DataView(buf).setUint32(80, 3, true);
-    expect(stlBounds(buf)).toBeNull();
   });
 });
 

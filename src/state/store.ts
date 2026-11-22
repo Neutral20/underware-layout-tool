@@ -40,17 +40,40 @@ export function newLayout(): Layout {
 }
 
 /** First spot from the top-left where a w x h mount fits without hitting another mount. */
-function freeSpot(board: Board, w: number, h: number, occupied: { x: number; y: number; w: number; h: number }[]) {
-  for (let y = 0; y + h <= board.heightCells; y++) {
-    for (let x = 0; x + w <= board.widthCells; x++) {
-      if (!occupied.some((o) => x < o.x + o.w && o.x < x + w && y < o.y + o.h && o.y < y + h)) return { x, y };
+/** A placed part: its mount cells, and the cells its whole body reaches (shape plus envelope), if known. */
+export interface Occupied {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  cells?: { x: number; y: number; w: number; h: number };
+}
+
+/** Whole cells a part's body reaches past its mount on each side. */
+export interface Margin {
+  l: number;
+  t: number;
+  r: number;
+  b: number;
+}
+const NO_MARGIN: Margin = { l: 0, t: 0, r: 0, b: 0 };
+
+function freeSpot(board: Board, w: number, h: number, occupied: Occupied[], m: Margin = NO_MARGIN) {
+  for (let y = m.t; y + h + m.b <= board.heightCells; y++) {
+    for (let x = m.l; x + w + m.r <= board.widthCells; x++) {
+      const [bx, by, bw, bh] = [x - m.l, y - m.t, w + m.l + m.r, h + m.t + m.b];
+      const hit = occupied.some((r) => {
+        const o = r.cells ?? r;
+        return bx < o.x + o.w && o.x < bx + bw && by < o.y + o.h && o.y < by + bh;
+      });
+      if (!hit) return { x, y };
     }
   }
   return { x: 0, y: 0 };
 }
 
-function withPlacement(s: State, pt: PartType, extraPartType: boolean, size: { w: number; h: number }, occupied: { x: number; y: number; w: number; h: number }[]): State {
-  const { x, y } = freeSpot(s.layout.board, size.w, size.h, occupied);
+function withPlacement(s: State, pt: PartType, extraPartType: boolean, size: { w: number; h: number }, occupied: Occupied[], margin?: Margin): State {
+  const { x, y } = freeSpot(s.layout.board, size.w, size.h, occupied, margin);
   const pl: Placement = { id: uid("pl"), partTypeId: pt.id, x, y, rotation: 0 };
   return {
     selectedId: pl.id,
@@ -75,7 +98,7 @@ const mapPlacement = (s: State, id: string, f: (p: Placement) => Placement): Sta
   layout: { ...s.layout, board: { ...s.layout.board, placements: s.layout.board.placements.map((p) => (p.id === id ? f(p) : p)) } },
 });
 
-export function reducer(s: State, a: Action, occupied: (s: State) => { x: number; y: number; w: number; h: number }[] = () => []): State {
+export function reducer(s: State, a: Action, occupied: (s: State) => Occupied[] = () => []): State {
   switch (a.type) {
     case "board": {
       const { tile, ...rest } = a.patch;
@@ -95,8 +118,12 @@ export function reducer(s: State, a: Action, occupied: (s: State) => { x: number
         params,
         envelope: { ...ZERO_ENVELOPE },
       };
-      const fp = g.footprint(params, s.layout.board.pitchMm);
-      return withPlacement(s, pt, true, { w: fp.wCells, h: fp.hCells }, occupied(s));
+      const p = s.layout.board.pitchMm;
+      const fp = g.footprint(params, p);
+      const e = fp.envelope ?? {};
+      const c = (mm = 0) => Math.ceil(mm / p - 1e-6);
+      const margin = { l: c(e.leftMm), t: c(e.topMm), r: c(e.rightMm), b: c(e.bottomMm) };
+      return withPlacement(s, pt, true, { w: fp.wCells, h: fp.hCells }, occupied(s), margin);
     }
     case "addCustom": {
       const pt: PartType = {

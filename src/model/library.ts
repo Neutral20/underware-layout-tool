@@ -66,6 +66,8 @@ export interface Generator {
   sourceUrl?: string;
   /** Part name that follows the params (e.g. the chosen piece). */
   nameFor?(p: Record<string, ParamValue>): string;
+  /** True when the part is a bridge, built to pass over other channels. */
+  passesOver?(p: Record<string, ParamValue>): boolean;
 }
 
 const UW_BASE = "https://github.com/AndyLevesque/QuackWorks/blob/main/Underware/";
@@ -342,6 +344,7 @@ export const OG_GENERATORS: Generator[] = [
       return fixedFootprint(w, h, d, pitch);
     },
     nameFor: (p) => `Clip-on ${ogPiece(p.Piece).label.toLowerCase()}`,
+    passesOver: (p) => ogPiece(p.Piece).id.startsWith("bridge"),
     notes: OG_NOTE,
   },
 ];
@@ -517,6 +520,7 @@ export const MK_GENERATORS: Generator[] = [
     name: "Monokini bridge",
     scadFile: "monokini_bridge_channel.scad",
     color: "#1e40af",
+    passesOver: () => true,
     params: [
       mkWidth(),
       mkLen("Bridge_Channel_Length_in_Units_Y_Axis_Bottom", "Straight in (cells)"),

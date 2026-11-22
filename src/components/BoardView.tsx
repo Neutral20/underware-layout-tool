@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import type { Resolved } from "../model/geometry";
+import { labelPoint, loopsPath } from "../model/outline";
 import type { Board, Issue } from "../model/types";
 
 interface Props {
@@ -97,11 +98,11 @@ export function BoardView({ board, resolved, issues, selectedId, pxPerMm, onSele
         const sel = r.placement.id === selectedId;
         const hasEnv = r.env.leftMm || r.env.rightMm || r.env.topMm || r.env.bottomMm;
         const label = r.placement.label || r.partType.name;
-        const cx = (r.x + r.w / 2) * p;
-        const cy = (r.y + r.h / 2) * p;
-        const fs = Math.min(16, (r.w * p) / Math.max(4, label.length * 0.62), r.h * p * 0.6);
+        const sb = r.shapeBox;
+        const [cx, cy] = r.shapeKind === "measured" ? labelPoint(r.shape, sb) : [(sb.x0 + sb.x1) / 2, (sb.y0 + sb.y1) / 2];
+        const fs = Math.max(5, Math.min(16, (sb.x1 - sb.x0) / Math.max(4, label.length * 0.62), (sb.y1 - sb.y0) * 0.6));
         return (
-          <g key={r.placement.id} className={`part ${sev ?? ""} ${sel ? "selected" : ""}`} onPointerDown={(e) => onDown(e, r)}>
+          <g key={r.placement.id} className={`part ${sev ?? ""} ${sel ? "selected" : ""} ${r.shapeKind}`} onPointerDown={(e) => onDown(e, r)}>
             {hasEnv ? (
               <rect
                 x={r.body.x0}
@@ -112,10 +113,22 @@ export function BoardView({ board, resolved, issues, selectedId, pxPerMm, onSele
                 style={{ stroke: r.partType.color }}
               />
             ) : null}
-            <rect x={r.x * p + 1} y={r.y * p + 1} width={r.w * p - 2} height={r.h * p - 2} rx={3} className="mount" style={{ fill: r.partType.color }} />
+            {r.shapeKind === "measured" ? (
+              <>
+                {sel ? <rect x={r.x * p} y={r.y * p} width={r.w * p} height={r.h * p} className="mount-cells" /> : null}
+                <path d={loopsPath(r.shape)} fillRule="evenodd" className="mount" style={{ fill: r.partType.color }} />
+              </>
+            ) : (
+              <rect x={r.x * p + 1} y={r.y * p + 1} width={r.w * p - 2} height={r.h * p - 2} rx={3} className="mount" style={{ fill: r.partType.color }} />
+            )}
             <text x={cx} y={cy} className="part-label" style={{ fontSize: fs }}>
               {label}
             </text>
+            {sel && r.sizeMm ? (
+              <text x={(sb.x0 + sb.x1) / 2} y={Math.max(sb.y1, r.body.y1) + 9} className="dim part-dim">
+                {r.sizeMm[0].toFixed(1)} × {r.sizeMm[1].toFixed(1)} mm
+              </text>
+            ) : null}
           </g>
         );
       })}

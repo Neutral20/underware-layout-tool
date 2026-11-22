@@ -2,9 +2,10 @@ import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { BoardView } from "./components/BoardView";
 import { ExportPanel } from "./components/ExportPanel";
 import { Inspector } from "./components/Inspector";
-import { checkBoard, resolve } from "./model/geometry";
+import { checkBoard, resolve, type OutlineLookup } from "./model/geometry";
+import { retryOutline, useOutlines } from "./render/outlines";
 import { GENERATORS, MK_GENERATORS, OG_GENERATORS, type Generator } from "./model/library";
-import { loadSaved, newLayout, parseLayout, reducer, save, type Action, type State } from "./state/store";
+import { loadSaved, newLayout, parseLayout, reducer, save, type Action, type Occupied, type State } from "./state/store";
 
 function init(): State {
   return { layout: loadSaved() ?? newLayout(), selectedId: null };
@@ -27,11 +28,22 @@ function LibrarySection({ title, hint, generators, onAdd }: { title: string; hin
   );
 }
 
+/** Cells each placed part reaches with its real shape, so new parts land clear of them. */
+function occupiedCells(st: State, outlineFor: OutlineLookup): Occupied[] {
+  const p = st.layout.board.pitchMm;
+  return resolve(st.layout.board, st.layout.partTypes, outlineFor).map((r) => {
+    const x = Math.floor(r.body.x0 / p + 1e-6), y = Math.floor(r.body.y0 / p + 1e-6);
+    return { x: r.x, y: r.y, w: r.w, h: r.h, cells: { x, y, w: Math.ceil(r.body.x1 / p - 1e-6) - x, h: Math.ceil(r.body.y1 / p - 1e-6) - y } };
+  });
+}
+
 export default function App() {
+  // The reducer runs outside render, so it reads the latest outlines from a ref.
+  const outlineRef = useRef<OutlineLookup>(() => null);
   // Resolved shapes are needed inside the reducer (to find free spots), so
   // wrap it to pass a function that computes them from the current state.
   const [state, dispatch] = useReducer(
-    (s: State, a: Action) => reducer(s, a, (st) => resolve(st.layout.board, st.layout.partTypes)),
+    (s: State, a: Action) => reducer(s, a, (st) => occupiedCells(st, outlineRef.current)),
     undefined,
     init,
   );
@@ -41,8 +53,15 @@ export default function App() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const resolved = useMemo(() => resolve(board, partTypes), [board, partTypes]);
-  const issues = useMemo(() => checkBoard(board, partTypes), [board, partTypes]);
+  // Real outlines, measured from the models in the background.
+  const shapes = useOutlines(board, partTypes);
+  const outlineFor = useMemo<OutlineLookup>(() => (pt) => {
+    const s = shapes.get(pt.id);
+    return s?.status === "ready" ? s.outline : null;
+  }, [shapes]);
+  outlineRef.current = outlineFor;
+  const resolved = useMemo(() => resolve(board, partTypes, outlineFor), [board, partTypes, outlineFor]);
+  const issues = useMemo(() => checkBoard(board, partTypes, outlineFor, resolved), [board, partTypes, outlineFor, resolved]);
   const selected = resolved.find((r) => r.placement.id === selectedId) ?? null;
 
   useEffect(() => save(layout), [layout]);
@@ -237,6 +256,8 @@ export default function App() {
         {selected ? (
           <Inspector
             r={selected}
+            shape={shapes.get(selected.partType.id)}
+            onRetryShape={() => retryOutline(board, selected.partType)}
             board={board}
             sharedCount={board.placements.filter((p) => p.partTypeId === selected.partType.id).length}
             onPlacement={(patch) => dispatch({ type: "updatePlacement", placementId: selected.placement.id, patch })}

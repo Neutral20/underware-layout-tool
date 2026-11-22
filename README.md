@@ -37,9 +37,11 @@ The Export STLs panel renders every placed Underware part in the browser with Op
 - `parts.csv` with each file, quantity and the SCAD parameters used.
 - `layout.json` (the layout it came from) and `README.txt` with credits.
 
-Each piece takes roughly 3 to 30 s; renders run in a small worker pool and are cached for the session, so a second export or a size check followed by an export doesn't render twice. Custom parts with a manual size are listed but not generated.
+Each piece takes roughly 3 to 30 s; renders run in a small worker pool and are cached for the session, so a second export, or a shape measurement followed by an export, doesn't render twice. Custom parts with a manual size are listed but not generated.
 
-**Check size with a render** (in the part inspector) renders one part and compares its real size with the footprint the planner assumes. If the part is bigger, one click adds the difference to its body envelope.
+**Real part shapes.** The board draws every generated part as its true top-down outline (curves, T, Y and S shapes, mounting holes), not a box, and the overlap and overhang checks use that outline. Parts can sit in the empty cells of a curve or T; pieces that meet end to end count as touching, not colliding; bridges may cross other channels. Select a part to see its exact size in mm.
+
+Outlines are projected from the rendered mesh (`src/model/outline.ts`): the mesh is seen from the side the parts face, rasterised at 0.2 mm, traced and simplified, then fitted to the grid so channel walls sit 0.8 mm inside their cells and channel ends sit on cell lines. Every fixed clip-on piece, clip-on straights of 1 to 30 cells and each generator's defaults ship pre-computed in `src/model/outlines.prebuilt.json` (rebuild with `npx vite-node scripts/build-outlines.ts`). Any other size is rendered in the background the first time it's placed (a few seconds for straights, up to about 45 s for crosses), drawn as dashed mount cells until then, and saved in the browser so it's instant next time. The render is shared with STL export.
 
 **Clip-on channels for openGrid.** "Underware for openGrid" by David D: one-piece channels that snap straight onto the grid bars. The pieces (curves r1 to r4, Y, T, X, Z, S jog, ends, bridges) come from the original 3MF and export as-is; straights of any length are built from the 1-cell straight, which gives exactly the 3MF's own 2x to 8x straights. Re-vendor with `node scripts/vendor-opengrid-underware.mjs <file.3mf>`. These are sized for a 28 mm grid only, and come in one width.
 

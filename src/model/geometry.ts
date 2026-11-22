@@ -1,7 +1,11 @@
 import { generatorById } from "./library";
+import { fitOffset, loopsBox, overlap, placeLoops, rectLoop, type Box, type Outline, type Pt } from "./outline";
 import type { Board, Envelope, Issue, PartType, Placement, Rotation } from "./types";
 
 export const ZERO_ENVELOPE: Envelope = { leftMm: 0, rightMm: 0, topMm: 0, bottomMm: 0, depthMm: 0 };
+
+/** Looks up the real outline for a part type, when one is known (see render/outlines.ts). */
+export type OutlineLookup = (pt: PartType) => Outline | null | undefined;
 
 /** Mount size and envelope of a part type before rotation. */
 export function baseShape(pt: PartType, pitchMm: number): { w: number; h: number; env: Envelope; approx: boolean } {
@@ -38,6 +42,14 @@ export function rotateShape(w: number, h: number, env: Envelope, rot: Rotation) 
   return { w: cw, h: ch, env: e };
 }
 
+/**
+ * Where a part's shape comes from:
+ * - "measured": the real outline, projected from a rendered mesh.
+ * - "estimate": a generated part whose outline isn't known yet; its mount cells stand in.
+ * - "box": a custom part, which is the mount cells plus its envelope by definition.
+ */
+export type ShapeKind = "measured" | "estimate" | "box";
+
 export interface Resolved {
   placement: Placement;
   partType: PartType;
@@ -46,21 +58,64 @@ export interface Resolved {
   y: number;
   w: number;
   h: number;
+  /** Extra space around the shape (rotated), in mm. */
   env: Envelope;
   approx: boolean;
-  /** Body rectangle in mm, board origin top-left. */
-  body: { x0: number; y0: number; x1: number; y1: number };
+  /** The part's footprint on the board, in board mm (even-odd loops). */
+  shape: Pt[][];
+  shapeBox: Box;
+  shapeKind: ShapeKind;
+  /** Real size on the board in mm (after rotation) and height off it, when measured. */
+  sizeMm: [number, number, number] | null;
+  /** Shape box plus envelope: everything the part takes up, in board mm. */
+  body: Box;
+  /** Bridges are made to pass over other channels. */
+  passesOver: boolean;
 }
 
-export function resolve(board: Board, partTypes: PartType[]): Resolved[] {
+const isZeroEnv = (e: Envelope) => !e.leftMm && !e.rightMm && !e.topMm && !e.bottomMm;
+
+// Fitting an outline onto the grid is a little work; parts that share a type share the result.
+const fitCache = new WeakMap<Outline, Map<string, Pt>>();
+function cachedFit(o: Outline, w: number, h: number, pitch: number): Pt {
+  let m = fitCache.get(o);
+  if (!m) fitCache.set(o, (m = new Map()));
+  const k = `${w}x${h}@${pitch}`;
+  let off = m.get(k);
+  if (!off) m.set(k, (off = fitOffset(o, w, h, pitch)));
+  return off;
+}
+
+export function resolve(board: Board, partTypes: PartType[], outlineFor: OutlineLookup = () => null): Resolved[] {
   const byId = new Map(partTypes.map((p) => [p.id, p]));
   const out: Resolved[] = [];
+  const p = board.pitchMm;
   for (const pl of board.placements) {
     const pt = byId.get(pl.partTypeId);
     if (!pt) continue;
-    const b = baseShape(pt, board.pitchMm);
-    const r = rotateShape(b.w, b.h, b.env, pl.rotation);
-    const p = board.pitchMm;
+    const g = generatorById(pt.generatorId);
+    const b = baseShape(pt, p);
+    const outline = g ? outlineFor(pt) : null;
+    const mount: Box = { x0: pl.x * p, y0: pl.y * p, x1: 0, y1: 0 };
+
+    let r, shape: Pt[][], shapeKind: ShapeKind, sizeMm: Resolved["sizeMm"] = null;
+    if (outline) {
+      // The outline replaces the generator's own guess at the body; only the
+      // part type's extra envelope (cables and so on) is added around it.
+      r = rotateShape(b.w, b.h, pt.envelope, pl.rotation);
+      const off = cachedFit(outline, b.w, b.h, p);
+      shape = placeLoops(outline.loops, off, b.w * p, b.h * p, pl.rotation, [mount.x0, mount.y0]);
+      shapeKind = "measured";
+      const [sw, sh, sd] = outline.sizeMm;
+      sizeMm = pl.rotation % 180 ? [sh, sw, sd] : [sw, sh, sd];
+    } else {
+      r = rotateShape(b.w, b.h, b.env, pl.rotation);
+      mount.x1 = mount.x0 + r.w * p;
+      mount.y1 = mount.y0 + r.h * p;
+      shape = [rectLoop(mount)];
+      shapeKind = g ? "estimate" : "box";
+    }
+    const shapeBox = loopsBox(shape);
     out.push({
       placement: pl,
       partType: pt,
@@ -69,13 +124,18 @@ export function resolve(board: Board, partTypes: PartType[]): Resolved[] {
       w: r.w,
       h: r.h,
       env: r.env,
-      approx: b.approx,
+      approx: !outline && b.approx,
+      shape,
+      shapeBox,
+      shapeKind,
+      sizeMm,
       body: {
-        x0: pl.x * p - r.env.leftMm,
-        y0: pl.y * p - r.env.topMm,
-        x1: (pl.x + r.w) * p + r.env.rightMm,
-        y1: (pl.y + r.h) * p + r.env.bottomMm,
+        x0: shapeBox.x0 - r.env.leftMm,
+        y0: shapeBox.y0 - r.env.topMm,
+        x1: shapeBox.x1 + r.env.rightMm,
+        y1: shapeBox.y1 + r.env.bottomMm,
       },
+      passesOver: !!g?.passesOver?.(pt.params),
     });
   }
   return out;
@@ -84,9 +144,12 @@ export function resolve(board: Board, partTypes: PartType[]): Resolved[] {
 const nameOf = (r: Resolved) => r.placement.label || r.partType.name;
 const fmt = (mm: number) => `${Math.round(mm * 10) / 10} mm`;
 
+/** Overlap thinner than this is two parts touching, not colliding (outlines are traced at 0.2 mm). */
+const TOUCH_MM = 0.6;
+
 /** All fit problems for a board. Pure: same input, same output. */
-export function checkBoard(board: Board, partTypes: PartType[]): Issue[] {
-  const rs = resolve(board, partTypes);
+export function checkBoard(board: Board, partTypes: PartType[], outlineFor?: OutlineLookup, resolved?: Resolved[]): Issue[] {
+  const rs = resolved ?? resolve(board, partTypes, outlineFor);
   const issues: Issue[] = [];
   const W = board.widthCells, H = board.heightCells, p = board.pitchMm;
 
@@ -97,10 +160,11 @@ export function checkBoard(board: Board, partTypes: PartType[]): Issue[] {
       continue;
     }
     const over: string[] = [];
-    if (r.body.x0 < -1e-6) over.push(`${fmt(-r.body.x0)} left`);
-    if (r.body.x1 > W * p + 1e-6) over.push(`${fmt(r.body.x1 - W * p)} right`);
-    if (r.body.y0 < -1e-6) over.push(`${fmt(-r.body.y0)} top`);
-    if (r.body.y1 > H * p + 1e-6) over.push(`${fmt(r.body.y1 - H * p)} bottom`);
+    const e = 0.05;
+    if (r.body.x0 < -e) over.push(`${fmt(-r.body.x0)} left`);
+    if (r.body.x1 > W * p + e) over.push(`${fmt(r.body.x1 - W * p)} right`);
+    if (r.body.y0 < -e) over.push(`${fmt(-r.body.y0)} top`);
+    if (r.body.y1 > H * p + e) over.push(`${fmt(r.body.y1 - H * p)} bottom`);
     if (over.length) {
       issues.push({ severity: "warning", kind: "envelope-overhang", placementIds: [id], detail: `${nameOf(r)}: overhangs board edge by ${over.join(", ")}` });
     }
@@ -110,13 +174,26 @@ export function checkBoard(board: Board, partTypes: PartType[]): Issue[] {
     for (let j = i + 1; j < rs.length; j++) {
       const a = rs[i], b = rs[j];
       const ids = [a.placement.id, b.placement.id];
-      const mountHit = a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
-      if (mountHit) {
-        issues.push({ severity: "error", kind: "mount-overlap", placementIds: ids, detail: `${nameOf(a)} and ${nameOf(b)}: mounts overlap` });
+      const ov = overlap(a.shape, b.shape, a.shapeBox, b.shapeBox);
+      if (ov.depthMm > TOUCH_MM) {
+        // A bridge is built to cross a channel; leave that to the person.
+        if (a.passesOver !== b.passesOver) continue;
+        const real = a.shapeKind === "measured" && b.shapeKind === "measured";
+        issues.push({
+          severity: "error",
+          kind: "mount-overlap",
+          placementIds: ids,
+          detail: real
+            ? `${nameOf(a)} and ${nameOf(b)}: parts collide (overlap ${fmt(ov.depthMm)} deep, ${Math.round(ov.areaMm2)} mm²)`
+            : `${nameOf(a)} and ${nameOf(b)}: mounts overlap`,
+        });
         continue;
       }
-      const e = 1e-6;
-      const bodyHit = a.body.x0 < b.body.x1 - e && b.body.x0 < a.body.x1 - e && a.body.y0 < b.body.y1 - e && b.body.y0 < a.body.y1 - e;
+      // Envelopes are rough boxes, so their overlap is only a warning, and
+      // only matters when a part has one beyond its real shape.
+      if (isZeroEnv(a.env) && isZeroEnv(b.env)) continue;
+      const t = 1e-6;
+      const bodyHit = a.body.x0 < b.body.x1 - t && b.body.x0 < a.body.x1 - t && a.body.y0 < b.body.y1 - t && b.body.y0 < a.body.y1 - t;
       if (bodyHit) {
         issues.push({ severity: "warning", kind: "envelope-overlap", placementIds: ids, detail: `${nameOf(a)} and ${nameOf(b)}: bodies overlap` });
       }

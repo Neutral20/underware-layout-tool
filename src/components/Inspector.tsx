@@ -1,10 +1,13 @@
 import type { Resolved } from "../model/geometry";
 import { generatorById, scadUrl, type ParamSpec } from "../model/library";
 import type { Board, Envelope, ParamValue, PartType, Placement } from "../model/types";
-import { SizeCheck } from "./SizeCheck";
+import type { OutlineState } from "../render/outlines";
 
 interface Props {
   r: Resolved;
+  /** Real-shape measurement for generated parts. */
+  shape?: OutlineState;
+  onRetryShape(): void;
   sharedCount: number;
   board: Board;
   onPlacement(patch: Partial<Placement>): void;
@@ -76,7 +79,31 @@ const SIDES: [keyof Envelope, string][] = [
   ["depthMm", "Depth"],
 ];
 
-export function Inspector({ r, sharedCount, board, onPlacement, onPartType, onRotate, onDuplicate, onRemove }: Props) {
+const mm = (n: number) => `${n.toFixed(1)} mm`;
+
+function ShapeInfo({ r, shape, onRetry }: { r: Resolved; shape?: OutlineState; onRetry(): void }) {
+  if (!shape) return null;
+  return (
+    <div className="shape-info">
+      <h4>Real shape</h4>
+      {shape.status === "ready" && r.sizeMm ? (
+        <p className="muted">
+          {mm(r.sizeMm[0])} × {mm(r.sizeMm[1])} on the board, {mm(r.sizeMm[2])} tall. Measured from the model; the board and the fit checks use this
+          outline.
+        </p>
+      ) : shape.status === "measuring" ? (
+        <p className="muted">Measuring the real shape from a render (10 to 30 s). Until then the part is drawn as its mount cells.</p>
+      ) : shape.status === "failed" ? (
+        <>
+          <p className="error-text">Couldn't measure the real shape, so the part is drawn as its mount cells. {shape.error}</p>
+          <button onClick={onRetry}>Try again</button>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+export function Inspector({ r, shape, onRetryShape, sharedCount, board, onPlacement, onPartType, onRotate, onDuplicate, onRemove }: Props) {
   const pitchMm = board.pitchMm;
   const pt = r.partType;
   const g = generatorById(pt.generatorId);
@@ -98,7 +125,7 @@ export function Inspector({ r, sharedCount, board, onPlacement, onPartType, onRo
       </div>
       <p className="muted">
         Mount {r.w}×{r.h} cells ({r.w * pitchMm}×{r.h * pitchMm} mm)
-        {r.approx ? " · footprint estimated, verify with a render" : ""}
+        {r.approx ? " · footprint estimated until the real shape is measured" : ""}
       </p>
 
       <h3>Part type{sharedCount > 1 ? ` (shared by ${sharedCount} placements)` : ""}</h3>
@@ -122,7 +149,7 @@ export function Inspector({ r, sharedCount, board, onPlacement, onPartType, onRo
           {g.params.map((s) => (
             <ParamInput key={s.name} spec={s} value={pt.params[s.name] ?? s.default} onChange={(v) => onPartType({ params: { ...pt.params, [s.name]: v } })} />
           ))}
-          <SizeCheck board={board} pt={pt} onEnvelope={(envelope) => onPartType({ envelope })} />
+          <ShapeInfo r={r} shape={shape} onRetry={onRetryShape} />
         </>
       ) : (
         <div className="row">
@@ -131,8 +158,10 @@ export function Inspector({ r, sharedCount, board, onPlacement, onPartType, onRo
         </div>
       )}
 
-      <h4>{g ? "Extra body beyond mount (mm)" : "Body beyond mount (mm)"}</h4>
-      <p className="muted">Before rotation. Use this for overhang, like a PSU sticking past its holder.</p>
+      <h4>{g ? "Extra space beyond the part (mm)" : "Body beyond mount (mm)"}</h4>
+      <p className="muted">
+        Before rotation. {g ? "Added around the part's real shape, for things it holds (a PSU sticking out, cables)." : "Use this for overhang, like a PSU sticking past its holder."}
+      </p>
       <div className="row wrap">
         {SIDES.map(([k, label]) => (
           <Num key={k} label={label} min={0} step={0.5} value={pt.envelope[k]} onChange={(n) => onPartType({ envelope: { ...pt.envelope, [k]: Math.max(0, n) } })} />

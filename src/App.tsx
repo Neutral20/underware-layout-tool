@@ -3,11 +3,28 @@ import { BoardView } from "./components/BoardView";
 import { ExportPanel } from "./components/ExportPanel";
 import { Inspector } from "./components/Inspector";
 import { checkBoard, resolve } from "./model/geometry";
-import { GENERATORS, OG_GENERATORS } from "./model/library";
+import { GENERATORS, MK_GENERATORS, OG_GENERATORS, type Generator } from "./model/library";
 import { loadSaved, newLayout, parseLayout, reducer, save, type Action, type State } from "./state/store";
 
 function init(): State {
   return { layout: loadSaved() ?? newLayout(), selectedId: null };
+}
+
+function LibrarySection({ title, hint, generators, onAdd }: { title: string; hint: string; generators: Generator[]; onAdd(id: string): void }) {
+  return (
+    <section>
+      <h2>{title}</h2>
+      <div className="library">
+        {generators.map((g) => (
+          <button key={g.id} onClick={() => onAdd(g.id)} title={g.notes}>
+            <span className="swatch" style={{ background: g.color }} />
+            {g.name}
+          </button>
+        ))}
+      </div>
+      <p className="muted">{hint}</p>
+    </section>
+  );
 }
 
 export default function App() {
@@ -118,18 +135,18 @@ export default function App() {
           </p>
         </section>
 
-        <section>
-          <h2>Add clip-on part (openGrid)</h2>
-          <div className="library">
-            {OG_GENERATORS.map((g) => (
-              <button key={g.id} onClick={() => dispatch({ type: "addFromGenerator", generatorId: g.id })} title={g.notes}>
-                <span className="swatch" style={{ background: g.color }} />
-                {g.name}
-              </button>
-            ))}
-          </div>
-          <p className="muted">One-piece channels that snap onto the grid. Pick the piece in the panel on the right.</p>
-        </section>
+        <LibrarySection
+          title="Clip-on channels, any size"
+          hint="Monokini by Pedro Leite. Snaps onto openGrid; set width, lengths and curve size on the right."
+          generators={MK_GENERATORS}
+          onAdd={(id) => dispatch({ type: "addFromGenerator", generatorId: id })}
+        />
+        <LibrarySection
+          title="Clip-on pieces (David D)"
+          hint="The fixed pieces from Underware for openGrid. Pick the piece on the right."
+          generators={OG_GENERATORS}
+          onAdd={(id) => dispatch({ type: "addFromGenerator", generatorId: id })}
+        />
 
         <section>
           <h2>Add Underware 2.0 part (QuackWorks)</h2>

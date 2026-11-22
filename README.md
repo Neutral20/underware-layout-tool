@@ -35,9 +35,11 @@ Each piece takes roughly 3 to 30 s; renders run in a small worker pool and are c
 
 **Clip-on channels for openGrid.** "Underware for openGrid" by David D: one-piece channels that snap straight onto the grid bars. The pieces (curves r1 to r4, Y, T, X, Z, S jog, ends, bridges) come from the original 3MF and export as-is; straights of any length are built from the 1-cell straight, which gives exactly the 3MF's own 2x to 8x straights. Re-vendor with `node scripts/vendor-opengrid-underware.mjs <file.3mf>`. These are sized for a 28 mm grid only, and come in one width.
 
+**Clip-on channels, any size (Monokini).** Pedro Leite's [Monokini](https://github.com/pleite/Monokini) SCADs, the parametric version of the same clip-on profile: straight, L corner (with extra radius), T, X, S jog, diagonal and bridge, in any width (cells), arm lengths and height. Footprints were measured from renders and are pinned in `src/render/plan.test.ts`. Vendored from commit `fa601de` into `public/scad/Monokini`.
+
 **Channel mount** for the QuackWorks channels is a swappable style (`src/render/mounts.ts`); today it uses each channel's own Mounting option.
 
-The SCAD sources are vendored into `public/scad/` by `scripts/vendor-scad.mjs` from pinned BOSL2 and QuackWorks commits. The script applies one patch to the C channel so it renders in WASM (the geometry is unchanged). One known failure remains: the C channel with the Wood Screw mount still crashes OpenSCAD WASM, and the export reports it as failed instead of hanging.
+The SCAD sources are vendored into `public/scad/` by `scripts/vendor-scad.mjs` from pinned BOSL2 and QuackWorks commits. The script applies one patch to the C channel so it renders in WASM (the geometry is unchanged). The worker also gives OpenSCAD an 8 MB stack (the prebuilt WASM ships with about 128 KB, which deeply nested SCADs like Monokini overflow, corrupting memory); see `src/render/worker.ts`.
 
 ## Part footprints
 
@@ -46,6 +48,8 @@ Footprints in `src/model/library.ts` were checked by rendering each QuackWorks S
 Note: the stock Underware 2.0 SCADs use a 25 mm (Multiboard) grid. `Grid_Size=28` scales them correctly, but their mounting options don't include an openGrid snap.
 
 ## Credits
+
+Parametric clip-on channels: [Monokini](https://github.com/pleite/Monokini) by Pedro Leite, CC BY-NC-SA 4.0 per the SCAD headers (the repo's LICENSE file is AGPL-3.0).
 
 Clip-on channels: [Underware for openGrid](https://www.printables.com/model/1214427-underware-for-opengrid-manage-your-cables-lite-ly) by David D, CC BY-NC-SA 4.0. The meshes are vendored in `public/scad/openGridUnderware/pieces`.
 

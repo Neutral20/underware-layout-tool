@@ -49,7 +49,7 @@ function sizeTag(pt: PartType): string {
   const nums = Object.entries(pt.params)
     .filter(([k, v]) => typeof v === "number" && /Unit|Radius|Over|Up|Out|Length|Width|Depth/.test(k) && !/Height/.test(k))
     .map(([, v]) => String(v));
-  const h = pt.params.Channel_Internal_Height ?? pt.params.Internal_Height;
+  const h = pt.params.Channel_Internal_Height ?? pt.params.Channel_Total_Height ?? pt.params.Internal_Height;
   return [nums.join("x"), h !== undefined ? `h${h}` : ""].filter(Boolean).join("-");
 }
 

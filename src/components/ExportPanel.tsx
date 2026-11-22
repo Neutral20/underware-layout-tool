@@ -13,7 +13,8 @@ Part models: QuackWorks Underware 2.0 by Hands on Katie and BlackjackDuck
 (Andy Levesque), https://github.com/AndyLevesque/QuackWorks, and
 Underware for openGrid by David D,
 https://www.printables.com/model/1214427-underware-for-opengrid-manage-your-cables-lite-ly
-Both licensed CC BY-NC-SA 4.0. Rendered with OpenSCAD and BOSL2.
+and Monokini by Pedro Leite, https://github.com/pleite/Monokini
+All licensed CC BY-NC-SA 4.0. Rendered with OpenSCAD and BOSL2.
 
 parts.csv lists each file, how many to print, and the parameters used.
 File names end in _xN where N is the quantity to print.

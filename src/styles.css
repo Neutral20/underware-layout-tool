@@ -100,3 +100,13 @@ line.seam { stroke: var(--seam); stroke-width: 1.4; stroke-dasharray: 6 3; }
   .sidebar, .panel { border: none; }
   .scroll { max-height: 70vh; }
 }
+
+.jobs { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
+.jobs li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; padding: 4px 6px; border-radius: 4px; background: var(--bg); }
+.jobs .job-name { overflow-wrap: anywhere; }
+.jobs .job-state { color: var(--muted); }
+.jobs li.rendering .job-state { color: var(--accent); }
+.jobs li.done .job-state { color: var(--ok); }
+.jobs li.failed { border-left: 3px solid var(--error); }
+.jobs .error-text { width: 100%; white-space: pre-wrap; }
+button:disabled { opacity: 0.5; cursor: default; }

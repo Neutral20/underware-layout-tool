@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { BoardView } from "./components/BoardView";
+import { ExportPanel } from "./components/ExportPanel";
 import { Inspector } from "./components/Inspector";
 import { checkBoard, resolve } from "./model/geometry";
 import { GENERATORS } from "./model/library";
@@ -132,6 +133,8 @@ export default function App() {
             </button>
           </div>
         </section>
+
+        <ExportPanel board={board} partTypes={partTypes} />
 
         <section>
           <h2>File</h2>

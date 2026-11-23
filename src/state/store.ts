@@ -1,4 +1,5 @@
 import { defaultParams, generatorById } from "../model/library";
+import { lookup, paramsFor, type ConnectionId } from "../model/catalog";
 import { ZERO_ENVELOPE } from "../model/geometry";
 import type { Board, Layout, PartType, Placement, Rotation } from "../model/types";
 
@@ -10,6 +11,8 @@ export interface State {
 export type Action =
   | { type: "board"; patch: Partial<Omit<Board, "placements" | "tile">> & { tile?: Partial<Board["tile"]> } }
   | { type: "addFromGenerator"; generatorId: string }
+  | { type: "addPart"; shape: string; connection: ConnectionId }
+  | { type: "setKind"; partTypeId: string; shape: string; connection: ConnectionId }
   | { type: "addCustom" }
   | { type: "duplicate"; placementId: string }
   | { type: "move"; placementId: string; x: number; y: number }
@@ -105,10 +108,17 @@ export function reducer(s: State, a: Action, occupied: (s: State) => Occupied[] 
       const b = s.layout.board;
       return { ...s, layout: { ...s.layout, board: { ...b, ...rest, tile: { ...b.tile, ...tile } } } };
     }
+    case "addPart":
     case "addFromGenerator": {
-      const g = generatorById(a.generatorId);
+      let g = a.type === "addFromGenerator" ? generatorById(a.generatorId) : undefined;
+      let params = g ? defaultParams(g) : {};
+      if (a.type === "addPart") {
+        const r = lookup(a.shape, a.connection);
+        if (!("option" in r)) return s;
+        g = r.generator;
+        params = paramsFor(r.option, g);
+      }
       if (!g) return s;
-      const params = defaultParams(g);
       const pt: PartType = {
         id: uid("pt"),
         name: g.nameFor?.(params) ?? g.name,
@@ -116,6 +126,7 @@ export function reducer(s: State, a: Action, occupied: (s: State) => Occupied[] 
         color: g.color,
         generatorId: g.id,
         params,
+        ...(a.type === "addPart" ? { shape: a.shape, connection: a.connection } : {}),
         envelope: { ...ZERO_ENVELOPE },
       };
       const p = s.layout.board.pitchMm;
@@ -167,6 +178,35 @@ export function reducer(s: State, a: Action, occupied: (s: State) => Occupied[] 
         ...s,
         layout: { ...s.layout, partTypes: s.layout.partTypes.map((t) => (t.id === a.partTypeId ? patchPartType(t, a.patch) : t)) },
       };
+    case "setKind": {
+      const r = lookup(a.shape, a.connection);
+      if (!("option" in r)) return s;
+      const g = r.generator;
+      return {
+        ...s,
+        layout: {
+          ...s.layout,
+          partTypes: s.layout.partTypes.map((t) => {
+            if (t.id !== a.partTypeId) return t;
+            const old = generatorById(t.generatorId);
+            const params = paramsFor(r.option, g, t.params);
+            // Keep a name or colour the user picked; follow the part otherwise.
+            const autoName = !old || t.name === (old.nameFor?.(t.params) ?? old.name);
+            const autoColor = !old || t.color === old.color;
+            return {
+              ...t,
+              generatorId: g.id,
+              category: g.category,
+              params,
+              shape: a.shape,
+              connection: a.connection,
+              name: autoName ? g.nameFor?.(params) ?? g.name : t.name,
+              color: autoColor ? g.color : t.color,
+            };
+          }),
+        },
+      };
+    }
     case "select":
       return { ...s, selectedId: a.id };
     case "load":

@@ -126,3 +126,15 @@ button:disabled { opacity: 0.5; cursor: default; }
 .shape-info h4 {
   margin-top: 0;
 }
+
+/* Part picker: connection segments and a shape grid. */
+.seg { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.seg button { flex: 1 1 auto; font-size: 12px; padding: 4px 6px; }
+.seg button.on { border-color: var(--accent); background: var(--accent); color: #fff; }
+.shapes { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 4px; margin-bottom: 4px; }
+.shapes button { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 12px; padding: 6px 4px; }
+.shapes button:hover:not(.off) { background: var(--bg); }
+.shape-icon { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.seg button.off, .shapes button.off { opacity: 0.4; cursor: help; border-style: dashed; }
+.seg button.off:hover, .shapes button.off:hover { border-color: var(--border); }
+.unavailable { color: var(--warning, var(--muted)); }

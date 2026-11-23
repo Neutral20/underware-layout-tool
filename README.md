@@ -71,6 +71,15 @@ Outlines are projected from the rendered mesh (`src/model/outline.ts`): the mesh
 
 The SCAD sources are vendored into `public/scad/` by `scripts/vendor-scad.mjs` from pinned BOSL2 and QuackWorks commits. The script applies one patch to the C channel so it renders in WASM (the geometry is unchanged). The worker also gives OpenSCAD an 8 MB stack (the prebuilt WASM ships with about 128 KB, which deeply nested SCADs like Monokini overflow, corrupting memory); see `src/render/worker.ts`.
 
+## Plates (3MF)
+
+With **Pack onto plates as 3MF** ticked (the default), the export also packs every printed copy onto build plates for the chosen printer: MaxRects packing, biggest pieces first, 4 mm apart, turned 90° where that fits better, inside the bed's 1 mm margin. A straight cut for corner-to-corner printing gets a plate of its own, laid on the diagonal. The panel shows a small top view of each plate, and `plates.txt` in the zip lists what's on each.
+
+Two forms (`src/render/threemf.ts`):
+
+- **One 3MF per plate** (`plates/plate-01.3mf`, …). Plain 3MF that any slicer opens with the pieces as packed. Bambu Studio keeps the arrangement and centres it on the plate.
+- **One Bambu Studio project with every plate** (`plates.3mf`), when you give it a project saved from Bambu Studio (**Use Bambu project…**, remembered in the browser). A Bambu project only keeps its plates when it carries Bambu's printer, filament and process settings, and only Bambu Studio can write those, so the tool copies that project's `Metadata/project_settings.config` and reads the bed size from its `printable_area`. The plates are laid out on Bambu Studio's own plate grid (a near-square grid of plates spaced 1.2 bed widths apart, as in its `PartPlate.cpp`), with one plate entry per plate in `Metadata/model_settings.config`, and Bambu Studio assigns pieces to plates by where they sit. This format was built from Bambu Studio's loader source and checked with unit tests, not yet opened in Bambu Studio itself.
+
 ## Part footprints
 
 Footprints in `src/model/library.ts` were checked by rendering each QuackWorks SCAD with OpenSCAD (Manifold backend, `Grid_Size=28`, base only) and reading the STL bounding box. The rendered cases are pinned in `src/model/geometry.test.ts`. Parts marked "estimated" extrapolate beyond those cases.

@@ -20,7 +20,13 @@ function ShapeIcon({ shape }: { shape: Shape }) {
   );
 }
 
-/** Connection buttons. Unavailable ones stay clickable so they can say why. */
+/** Connections a shape can use, in picker order. */
+export const connectionsFor = (shape: string) => CONNECTIONS.filter((c) => !("reason" in lookup(shape, c.id))).map((c) => c.id);
+
+/**
+ * Connection buttons. Unavailable ones stay clickable so they can say why.
+ * When only one is possible it's shown as already set, with nothing to pick.
+ */
 export function ConnectionPicker({
   value,
   onChange,
@@ -31,9 +37,18 @@ export function ConnectionPicker({
   reasonFor?(c: ConnectionId): string | null;
 }) {
   const [why, setWhy] = useState<string | null>(null);
+  const possible = CONNECTIONS.filter((c) => !reasonFor?.(c.id));
+  if (reasonFor && possible.length === 1) {
+    const only = possible[0];
+    return (
+      <p className="only-mount" title={only.note}>
+        <span className="pill-on">{only.label}</span> <span className="muted">the only way this part mounts</span>
+      </p>
+    );
+  }
   return (
     <>
-      <div className="seg" role="radiogroup" aria-label="Connection">
+      <div className="seg" role="radiogroup" aria-label="Mounting">
         {CONNECTIONS.map((c) => {
           const reason = reasonFor?.(c.id) ?? null;
           return (
@@ -60,14 +75,24 @@ export function ConnectionPicker({
   );
 }
 
-/** Sidebar picker: how it attaches, then the shape to add. */
+/** Sidebar picker: the part shape first, then how it mounts, then add. */
 export function PartPicker({ pitchMm, onAdd, onAddCustom }: { pitchMm: number; onAdd(shape: string, c: ConnectionId): void; onAddCustom(): void }) {
-  const [conn, setConn] = useState<ConnectionId>(savedConnection);
-  const [why, setWhy] = useState<string | null>(null);
+  const [shape, setShape] = useState(SHAPES[0].id);
+  // The mounting you last picked, used whenever the chosen shape supports it.
+  const [preferred, setPreferred] = useState<ConnectionId>(savedConnection);
+  const mountFor = (id: string) => {
+    const o = connectionsFor(id);
+    return o.includes(preferred) ? preferred : o[0];
+  };
+  const conn = mountFor(shape);
   const connection = CONNECTIONS.find((c) => c.id === conn)!;
+  const current = SHAPES.find((s) => s.id === shape)!;
+  const reasonFor = (c: ConnectionId) => {
+    const r = lookup(shape, c);
+    return "reason" in r ? r.reason : null;
+  };
   const choose = (c: ConnectionId) => {
-    setConn(c);
-    setWhy(null);
+    setPreferred(c);
     try {
       localStorage.setItem(KEY, c);
     } catch {
@@ -78,35 +103,36 @@ export function PartPicker({ pitchMm, onAdd, onAddCustom }: { pitchMm: number; o
   return (
     <section>
       <h2>Add a part</h2>
-      <ConnectionPicker value={conn} onChange={choose} />
+      <div className="shapes" role="radiogroup" aria-label="Part">
+        {SHAPES.map((s) => (
+          <button
+            key={s.id}
+            role="radio"
+            aria-checked={s.id === shape}
+            className={s.id === shape ? "on" : ""}
+            title="Double-click to add it right away"
+            onClick={() => setShape(s.id)}
+            onDoubleClick={() => onAdd(s.id, mountFor(s.id))}
+          >
+            <ShapeIcon shape={s} />
+            <span>{s.label}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="field">
+        <span>Mounting</span>
+        <ConnectionPicker key={shape} value={conn} onChange={choose} reasonFor={reasonFor} />
+      </div>
       <p className="muted">{connection.note}</p>
       {conn === "clip" && pitchMm !== 28 ? <p className="muted unavailable">Clip-in parts are sized for a 28 mm grid; this board is {pitchMm} mm.</p> : null}
-      {conn !== "clip" && conn !== "multiconnect" && pitchMm === 28 ? (
+      {(conn === "snap" || conn === "screw") && pitchMm === 28 ? (
         <p className="muted">Scaled to the 28 mm grid. The QuackWorks parts are designed for 25 mm Multiboard.</p>
       ) : null}
-      <div className="shapes">
-        {SHAPES.map((s) => {
-          const r = lookup(s.id, conn);
-          const reason = "reason" in r ? r.reason : null;
-          return (
-            <button
-              key={s.id}
-              aria-disabled={!!reason}
-              className={reason ? "off" : ""}
-              title={"generator" in r ? r.generator.name : reason ?? undefined}
-              onClick={() => {
-                if (reason) return setWhy(`${s.label}: ${reason}`);
-                setWhy(null);
-                onAdd(s.id, conn);
-              }}
-            >
-              <ShapeIcon shape={s} />
-              <span>{s.label}</span>
-            </button>
-          );
-        })}
-      </div>
-      {why ? <p className="muted unavailable">{why}</p> : <p className="muted">Greyed-out shapes don't exist with this connection. Click one to see why.</p>}
+      <button className="primary add" onClick={() => onAdd(shape, conn)}>
+        Add {current.label.toLowerCase()}
+      </button>
+
       <div className="library">
         <button onClick={onAddCustom}>
           <span className="swatch" style={{ background: "#64748b" }} />

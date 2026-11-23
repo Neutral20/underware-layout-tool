@@ -22,7 +22,7 @@ One-time setup: in the repo, **Settings → Pages → Build and deployment → S
 ## What's in v1
 
 - Board in cells (default 21×60), grid pitch 28 mm (openGrid) or 25 mm (Multiboard), tile seams drawn every N cells.
-- Two-step part picker: pick how parts attach (clip-in for openGrid, the default; threaded snap; Multiconnect; or screw, magnet or flat), then a shape (straight, corner, curve, T, cross, S jog, diagonal, Y split, branch split, end, bridge, item holder, other clip-in piece). Each pair maps to one generator in `src/model/catalog.ts`; pairs that don't exist are greyed out and say why when clicked. The selected part's shape and connection can be changed in the inspector, which keeps matching sizes and shows only the params that apply.
+- Two-step part picker: pick a shape (straight, corner, curve, T, cross, S jog, diagonal, Y split, branch split, end, bridge, item holder, other clip-in piece), then how it mounts (clip-in for openGrid, threaded snap, Multiconnect, or screw, magnet or flat), then Add (or double-click the shape). Mountings the shape doesn't have are greyed out and say why when clicked; a shape with only one mounting has it set for you. The last mounting you picked is reused whenever the next shape supports it. Each pair maps to one generator in `src/model/catalog.ts`. The selected part's shape and mounting can be changed in the inspector, which keeps matching sizes and shows only the params that apply.
 - Multiconnect: only the QuackWorks item holder has a Multiconnect back. No Underware channel SCAD (QuackWorks or Monokini) offers one, so channels show it as unavailable.
 - The mount footprint is computed from each generator's params.
 - Custom parts with a manual mount size.

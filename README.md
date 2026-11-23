@@ -31,6 +31,24 @@ One-time setup: in the repo, **Settings → Pages → Build and deployment → S
 - Drag, rotate (R), nudge (arrows), duplicate (Ctrl/Cmd+D), delete.
 - Autosave in the browser, JSON export/import.
 
+## Printer and long runs
+
+The **Printer** panel picks the printer the parts are cut and packed for: Bambu Lab X2D (the default), X1C/X1E, P1S/P1P/P2S, A1, A1 mini, H2D, H2S; Prusa MK4/MK4S, Core One, MINI+, XL; Creality K1, K1 Max, K2 Plus, Ender-3 V3; or a custom bed size. Sizes are in `src/model/printers.ts`. It's stored with the layout and is the one setting behind run cuts, tile sizes and plate packing. A 1 mm clearance is kept from each bed edge.
+
+**Long runs.** Straights (Monokini, clip-on, QuackWorks I) can be drawn up to 400 cells long. On export each run is cut into the fewest segments that fit the bed, as even as possible (a 30-cell run on the X2D prints as 8 + 8 + 7 + 7), so a run gives at most two segment lengths. The board draws the cuts as dashed lines, and the parts list says how each run was cut. "Lay long straights corner to corner" lets segments run diagonally across the bed (11 cells instead of 9 on a 256 mm bed).
+
+How segments join: butt joints on cell lines. None of these straights has a joiner of its own: David D's clip-on straight is a 1-cell piece repeated every 28 mm, Monokini's ends sit flush on a cell line, and the QuackWorks I channel is plain along its length. Each segment clips (or snaps, or screws) to the grid by itself, so the grid holds the run in line and no connector needs printing.
+
+Any other generated part bigger than the bed is flagged with a "doesn't fit the bed" warning. Item holders print on their backer, so their bed footprint isn't checked.
+
+## Space and tiles
+
+Enter the space in mm and **Fit board** sizes the board to the whole cells that fit (700 × 1200 mm → 25 × 42 cells, 24 mm spare).
+
+The board is printed as openGrid tiles from BlackjackDuck's openGrid tile generator (`public/scad/openGrid/openGrid.scad`, vendored from the same QuackWorks commit). **Biggest for the printer** splits the board into the largest tiles the bed takes, as evenly as possible (21 × 60 on the X2D: three columns of 7, rows of 9, 9, 9, 9, 8, 8, 8, so 12 tiles of 9×7 and 9 of 8×7). **Fixed size** keeps square tiles of N cells with a smaller last row or column (older layouts open in this mode at 7). The board draws the seams either way. Full, Lite or Heavy tiles; screw holes at the corners, everywhere or none; chamfered outside corners; connector holes on every edge, so identical sizes are one print, turned or not.
+
+With **Include tiles in the export** ticked (the default for new layouts), the STL zip gets one file per tile size with the count to print. A 9 × 9 Full tile takes about 45 s to render. Tiles join with openGrid connectors, k − 1 per seam of k cells, and the export includes them (`opengrid-connector_xN.stl`). The connector is David D's, from the [openGrid](https://www.printables.com/model/1214361-opengrid-walldesk-mounting-framework-and-ecosystem) 3MF (CC BY 4.0), vendored as `public/scad/openGrid/openGrid_Connector.stl` by `node scripts/vendor-opengrid-connector.mjs <openGridConnector.3mf>`. Tiles are openGrid (28 mm) only.
+
 ## STL export
 
 The Export STLs panel renders every placed Underware part in the browser with OpenSCAD compiled to WebAssembly (`openscad-wasm-prebuilt`, Manifold backend) and BOSL2, then downloads a zip:
@@ -53,6 +71,15 @@ Outlines are projected from the rendered mesh (`src/model/outline.ts`): the mesh
 
 The SCAD sources are vendored into `public/scad/` by `scripts/vendor-scad.mjs` from pinned BOSL2 and QuackWorks commits. The script applies one patch to the C channel so it renders in WASM (the geometry is unchanged). The worker also gives OpenSCAD an 8 MB stack (the prebuilt WASM ships with about 128 KB, which deeply nested SCADs like Monokini overflow, corrupting memory); see `src/render/worker.ts`.
 
+## Plates (3MF)
+
+With **Pack onto plates as 3MF** ticked (the default), the export also packs every printed copy onto build plates for the chosen printer: MaxRects packing, biggest pieces first, 4 mm apart, turned 90° where that fits better, inside the bed's 1 mm margin. A straight cut for corner-to-corner printing gets a plate of its own, laid on the diagonal. The panel shows a small top view of each plate, and `plates.txt` in the zip lists what's on each.
+
+Two forms (`src/render/threemf.ts`):
+
+- **One 3MF per plate** (`plates/plate-01.3mf`, …). Plain 3MF that any slicer opens with the pieces as packed. Bambu Studio keeps the arrangement and centres it on the plate.
+- **One Bambu Studio project with every plate** (`plates.3mf`), when you give it a project saved from Bambu Studio (**Use Bambu project…**, remembered in the browser). A Bambu project only keeps its plates when it carries Bambu's printer, filament and process settings, and only Bambu Studio can write those, so the tool copies that project's `Metadata/project_settings.config` and reads the bed size from its `printable_area`. The plates are laid out on Bambu Studio's own plate grid (a near-square grid of plates spaced 1.2 bed widths apart, as in its `PartPlate.cpp`), with one plate entry per plate in `Metadata/model_settings.config`, and Bambu Studio assigns pieces to plates by where they sit. This format was built from Bambu Studio's loader source and checked with unit tests, not yet opened in Bambu Studio itself.
+
 ## Part footprints
 
 Footprints in `src/model/library.ts` were checked by rendering each QuackWorks SCAD with OpenSCAD (Manifold backend, `Grid_Size=28`, base only) and reading the STL bounding box. The rendered cases are pinned in `src/model/geometry.test.ts`. Parts marked "estimated" extrapolate beyond those cases.
@@ -64,6 +91,8 @@ Note: the stock Underware 2.0 SCADs use a 25 mm (Multiboard) grid. `Grid_Size=28
 Parametric clip-on channels: [Monokini](https://github.com/pleite/Monokini) by Pedro Leite, CC BY-NC-SA 4.0 per the SCAD headers (the repo's LICENSE file is AGPL-3.0).
 
 Clip-on channels: [Underware for openGrid](https://www.printables.com/model/1214427-underware-for-opengrid-manage-your-cables-lite-ly) by David D, CC BY-NC-SA 4.0. The meshes are vendored in `public/scad/openGridUnderware/pieces`.
+
+Board tiles: [openGrid](https://www.printables.com/model/1214361-opengrid-walldesk-mounting-framework-and-ecosystem) by David D, with tile connectors from the openGrid 3MF (CC BY 4.0), generated with the [openGrid tile generator](https://makerworld.com/en/models/1304337-opengrid-tile-generator) by BlackjackDuck (Andy Levesque), CC BY-NC-SA 4.0, vendored in `public/scad/openGrid`.
 
 Part generators are the [QuackWorks](https://github.com/AndyLevesque/QuackWorks) Underware 2.0 SCADs by Hands on Katie and BlackjackDuck (Andy Levesque), licensed CC BY-NC-SA 4.0. Copies of the SCADs are vendored in `public/scad/Underware` under that licence, along with [BOSL2](https://github.com/BelfrySCAD/BOSL2) (BSD 2-clause).
 Part generators are the [QuackWorks](https://github.com/AndyLevesque/QuackWorks) Underware 2.0 SCADs by Hands on Katie and BlackjackDuck (Andy Levesque), licensed CC BY-NC-SA 4.0. The openGrid clip-on channels are David D's Underware for openGrid, with parametric versions from Pedro Leite's [Monokini](https://github.com/pleite/Monokini) (CC BY-NC-SA 4.0). This tool is shared under the same terms: free to use and remix with credit, non-commercial, changes shared alike. Copies of the SCADs are vendored in `public/scad/Underware` under that licence, along with [BOSL2](https://github.com/BelfrySCAD/BOSL2) (BSD 2-clause).

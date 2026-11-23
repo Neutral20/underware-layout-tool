@@ -4,6 +4,27 @@ import { buildExportPlan, partsCsv, type RenderJob } from "../render/plan";
 import { MOUNT_STYLES, mountById } from "../render/mounts";
 import { cancelAll, render } from "../render/service";
 import type { Board, PartType } from "../model/types";
+import { BED_MARGIN_MM, printerFor } from "../model/printers";
+import { bambuProject, packPieces, parseStl, plateFiles, readBambuTemplate, type BambuTemplate, type Packed } from "../render/threemf";
+import { PlatePreview } from "./PlatePreview";
+
+const TEMPLATE_KEY = "underware-layout-tool:bambu-template:v1";
+function loadTemplate(): (BambuTemplate & { fileName: string }) | null {
+  try {
+    const raw = localStorage.getItem(TEMPLATE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+function saveTemplate(t: (BambuTemplate & { fileName: string }) | null) {
+  try {
+    if (t) localStorage.setItem(TEMPLATE_KEY, JSON.stringify(t));
+    else localStorage.removeItem(TEMPLATE_KEY);
+  } catch {
+    /* too big or blocked: it lasts for this visit only */
+  }
+}
 
 type Status = { state: "queued" } | { state: "rendering" } | { state: "done"; ms: number; bytes: number } | { state: "failed"; error: string };
 
@@ -14,10 +35,18 @@ Part models: QuackWorks Underware 2.0 by Hands on Katie and BlackjackDuck
 Underware for openGrid by David D,
 https://www.printables.com/model/1214427-underware-for-opengrid-manage-your-cables-lite-ly
 and Monokini by Pedro Leite, https://github.com/pleite/Monokini
+Board tiles: openGrid by David D, made with the openGrid tile generator
+by BlackjackDuck (Andy Levesque), https://makerworld.com/en/models/1304337
+Tile connectors: openGrid connector by David D, CC BY 4.0, from
+https://www.printables.com/model/1214361-opengrid-walldesk-mounting-framework-and-ecosystem
 All licensed CC BY-NC-SA 4.0. Rendered with OpenSCAD and BOSL2.
 
 parts.csv lists each file, how many to print, and the parameters used.
 File names end in _xN where N is the quantity to print.
+
+Straights longer than the printer's bed are cut into segments on cell
+lines. Print every segment listed and lay them end to end; each one clips
+(or snaps) to the grid on its own, so no joiner is needed.
 `;
 
 interface Props {
@@ -26,12 +55,31 @@ interface Props {
   onMount(id: string): void;
 }
 
+function platesText(p: Packed, target: string): string {
+  const lines = [`Packed for ${target}: ${p.plates.length} plate${p.plates.length === 1 ? "" : "s"}.`, ""];
+  p.plates.forEach((pl, i) => {
+    const counts = new Map<string, number>();
+    for (const q of pl.pieces) {
+      const n = q.name.replace(/ \d+$/, "");
+      counts.set(n, (counts.get(n) ?? 0) + 1);
+    }
+    lines.push(`Plate ${i + 1}:`, ...[...counts].map(([n, c]) => `  ${n} x${c}`), "");
+  });
+  if (p.tooBig.length) lines.push(`Too big for the bed, not packed: ${p.tooBig.join(", ")}`);
+  return lines.join("\n") + "\n";
+}
+
 export function ExportPanel({ board, partTypes, onMount }: Props) {
   const plan = useMemo(() => buildExportPlan(board, partTypes), [board, partTypes]);
   const [running, setRunning] = useState(false);
   const [status, setStatus] = useState<Record<string, Status>>({});
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
+  const [want3mf, setWant3mf] = useState(true);
+  const [template, setTemplate] = useState(loadTemplate);
+  const [templateError, setTemplateError] = useState<string | null>(null);
+  const [packed, setPacked] = useState<Packed | null>(null);
+  const printer = printerFor(board.printer);
   const mount = mountById(board.channelMount);
   const hasChannels = partTypes.some((t) => t.category === "underware-channel" && board.placements.some((p) => p.partTypeId === t.id));
   const blocked = hasChannels && !mount.available;
@@ -71,8 +119,29 @@ export function ExportPanel({ board, partTypes, onMount }: Props) {
     setRunning(false);
     if (cancelled || Object.keys(files).length === 0) return;
 
+    // Pack every printed copy onto plates for the printer (or the Bambu template's bed).
+    const extra: Record<string, Uint8Array> = {};
+    setPacked(null);
+    if (want3mf) {
+      try {
+        const pieces = plan.jobs
+          .filter((j) => files[j.fileName])
+          .map((j) => ({ name: j.fileName.replace(/_x\d+\.stl$/, ""), mesh: parseStl(files[j.fileName].buffer as ArrayBuffer), quantity: j.quantity }));
+        const bed = template ? template.bed : printer.bed;
+        const p = packPieces(pieces, bed, BED_MARGIN_MM);
+        setPacked(p);
+        const title = board.name || "Layout";
+        if (template) extra["plates.3mf"] = bambuProject(p, template, title);
+        else plateFiles(p, title).forEach((f, i) => (extra[`plates/plate-${String(i + 1).padStart(2, "0")}.3mf`] = f));
+        extra["plates.txt"] = strToU8(platesText(p, template ? `${template.fileName} (Bambu Studio project)` : printer.name));
+      } catch (err) {
+        errors.push(`3MF packing: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
     const zip = zipSync(
       {
+        ...Object.fromEntries(Object.entries(extra).map(([k, v]) => [k, [v, { level: 0 }] as [Uint8Array, { level: 0 }]])),
         ...Object.fromEntries(Object.entries(files).map(([k, v]) => [`stl/${k}`, [v, { level: 6 }] as [Uint8Array, { level: 6 }]])),
         "parts.csv": strToU8(partsCsv(plan)),
         "layout.json": strToU8(JSON.stringify({ version: 1, board, partTypes }, null, 2)),
@@ -103,6 +172,14 @@ export function ExportPanel({ board, partTypes, onMount }: Props) {
             {plan.jobs.length} unique STL{plan.jobs.length === 1 ? "" : "s"} to render, {totalPieces} pieces to print.
             {board.pitchMm === 28 ? " Channels render at the 28 mm openGrid pitch." : ""} Renders already done this session are reused.
           </p>
+          {plan.runs.length ? (
+            <p className="muted">
+              Cut to fit the {printerFor(board.printer).name}:{" "}
+              {plan.runs.map((r) => `${r.name} ${r.lengthCells} cells → ${r.segments.join(" + ")}${r.quantity > 1 ? ` (×${r.quantity})` : ""}`).join("; ")}.
+              Segments butt together on cell lines.
+            </p>
+          ) : null}
+          {plan.connectors ? <p className="muted">Includes {plan.connectors} openGrid connectors to join the tiles.</p> : null}
           {plan.manual.length ? (
             <p className="muted">Custom parts aren't generated: {plan.manual.map((m) => `${m.name} ×${m.quantity}`).join(", ")}.</p>
           ) : null}
@@ -120,6 +197,53 @@ export function ExportPanel({ board, partTypes, onMount }: Props) {
           </label>
           ) : null}
           {blocked ? <p className="error-text">{mount.note}</p> : null}
+          <label className="field check">
+            <input type="checkbox" checked={want3mf} disabled={running} onChange={(e) => setWant3mf(e.target.checked)} />
+            <span>Pack onto plates as 3MF</span>
+          </label>
+          {want3mf ? (
+            <div className="template">
+              <p className="muted">
+                {template
+                  ? `One Bambu Studio project with every plate, using the printer and filament settings from ${template.fileName} (bed ${template.bed.x} × ${template.bed.y} mm).`
+                  : `One 3MF per plate for the ${printer.name}; any slicer opens them. For a single Bambu Studio project with all the plates, give it a project saved from Bambu Studio with your printer selected.`}
+              </p>
+              <div className="row buttons">
+                <label className="button">
+                  {template ? "Change Bambu project…" : "Use Bambu project…"}
+                  <input
+                    type="file"
+                    accept=".3mf"
+                    hidden
+                    onChange={async (e) => {
+                      const f = e.target.files?.[0];
+                      e.target.value = "";
+                      if (!f) return;
+                      try {
+                        const t = { ...readBambuTemplate(new Uint8Array(await f.arrayBuffer())), fileName: f.name };
+                        setTemplate(t);
+                        saveTemplate(t);
+                        setTemplateError(null);
+                      } catch (err) {
+                        setTemplateError(err instanceof Error ? err.message : String(err));
+                      }
+                    }}
+                  />
+                </label>
+                {template ? (
+                  <button
+                    onClick={() => {
+                      setTemplate(null);
+                      saveTemplate(null);
+                    }}
+                  >
+                    Per-plate files
+                  </button>
+                ) : null}
+              </div>
+              {templateError ? <p className="error-text">{templateError}</p> : null}
+            </div>
+          ) : null}
           <div className="row buttons">
             {running ? (
               <button className="danger" onClick={cancel}>
@@ -127,7 +251,7 @@ export function ExportPanel({ board, partTypes, onMount }: Props) {
               </button>
             ) : (
               <button onClick={run} disabled={plan.jobs.length === 0 || blocked}>
-                Generate STL zip
+                Generate zip
               </button>
             )}
           </div>
@@ -152,6 +276,7 @@ export function ExportPanel({ board, partTypes, onMount }: Props) {
               </ul>
             </>
           ) : null}
+          {packed ? <PlatePreview packed={packed} /> : null}
         </>
       )}
     </section>

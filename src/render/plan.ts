@@ -3,6 +3,8 @@
 
 import { generatorById, scadPath } from "../model/library";
 import { mountById } from "./mounts";
+import { segmentPart, segmentsFor } from "../model/runs";
+import { connectorCount, tileCounts, tileLayout } from "../model/tiles";
 import type { Board, ParamValue, PartType } from "../model/types";
 
 export interface RenderJob {
@@ -19,6 +21,15 @@ export interface RenderJob {
   summary: string;
 }
 
+/** A straight that is cut into segments to fit the bed. */
+export interface RunSplit {
+  name: string;
+  lengthCells: number;
+  segments: number[];
+  /** Placements of this run. */
+  quantity: number;
+}
+
 export interface ManualItem {
   name: string;
   quantity: number;
@@ -28,6 +39,43 @@ export interface ExportPlan {
   jobs: RenderJob[];
   /** Custom parts: no generator, so nothing to render. */
   manual: ManualItem[];
+  /** Straights cut to fit the printer, for the parts list. */
+  runs: RunSplit[];
+  /** openGrid connectors to join the tiles, included in jobs (0 when tiles aren't exported). */
+  connectors: number;
+}
+
+export const TILE_SCAD = "/openGrid/openGrid.scad";
+/** David D's tile connector (from the openGrid 3MF), wrapped in a SCAD that imports it. */
+export const CONNECTOR_SCAD = "/openGrid/openGrid_Connector.scad";
+
+/** Render jobs for the board's openGrid tiles, one per distinct tile size. */
+export function tileJobs(board: Board): RenderJob[] {
+  const t = board.tile;
+  const variant = t.variant ?? "Full";
+  return tileCounts(tileLayout(board)).map(({ w, h, quantity }) => {
+    const defines: Record<string, ParamValue> = {
+      Full_or_Lite: variant,
+      Board_Width: w,
+      Board_Height: h,
+      Tile_Size: board.pitchMm,
+      Screw_Mounting: t.screws ?? "Corners",
+      Chamfers: "Corners",
+      Connector_Holes: true,
+      Fill_Space_Mode: "None",
+      Stack_Count: 1,
+    };
+    return {
+      key: renderKey(TILE_SCAD, defines),
+      name: `openGrid tile ${w}×${h} (${variant})`,
+      piece: null,
+      scadPath: TILE_SCAD,
+      defines,
+      quantity,
+      fileName: `opengrid-tile_${w}x${h}-${variant.toLowerCase()}`,
+      summary: summarize(defines, new Set(["Fill_Space_Mode", "Stack_Count", "Connector_Holes"])),
+    };
+  });
 }
 
 const slug = (s: string) =>
@@ -95,6 +143,7 @@ export function buildExportPlan(board: Board, partTypes: PartType[]): ExportPlan
 
   const jobs = new Map<string, RenderJob>();
   const manual = new Map<string, ManualItem>();
+  const runs: RunSplit[] = [];
 
   for (const pt of partTypes) {
     const qty = counts.get(pt.id) ?? 0;
@@ -106,25 +155,45 @@ export function buildExportPlan(board: Board, partTypes: PartType[]): ExportPlan
       manual.set(pt.name, m);
       continue;
     }
-    for (const { piece, scadPath, defines } of rendersFor(board, pt)) {
-      const key = renderKey(scadPath, defines);
-      const existing = jobs.get(key);
-      if (existing) {
-        existing.quantity += qty;
-        continue;
+    // Long straights print as bed-sized segments, butt-jointed on cell lines.
+    const segs = segmentsFor(board, pt);
+    const printed = new Map<number | null, number>();
+    if (segs && segs.length > 1) {
+      runs.push({ name: pt.name, lengthCells: segs.reduce((a, b) => a + b, 0), segments: segs, quantity: qty });
+      for (const n of segs) printed.set(n, (printed.get(n) ?? 0) + qty);
+    } else printed.set(null, qty);
+
+    for (const [len, count] of printed) {
+      const part = len === null ? pt : segmentPart(pt, len);
+      for (const { piece, scadPath, defines } of rendersFor(board, part)) {
+        const key = renderKey(scadPath, defines);
+        const existing = jobs.get(key);
+        if (existing) {
+          existing.quantity += count;
+          continue;
+        }
+        jobs.set(key, {
+          key,
+          name: g.nameFor?.(part.params) ?? g.name,
+          piece,
+          scadPath,
+          defines,
+          quantity: count,
+          fileName: [slug(g.nameFor?.(part.params) ?? g.name), sizeTag(part), piece?.toLowerCase()].filter(Boolean).join("_"),
+          summary: summarize(defines, new Set(["Base_Top_or_Both"])),
+        });
       }
-      jobs.set(key, {
-        key,
-        name: g.nameFor?.(pt.params) ?? g.name,
-        piece,
-        scadPath,
-        defines,
-        quantity: qty,
-        fileName: "",
-        summary: summarize(defines, new Set(["Base_Top_or_Both"])),
-      });
-      // Remember a tag for naming; computed from the part type.
-      jobs.get(key)!.fileName = [slug(g.nameFor?.(pt.params) ?? g.name), sizeTag(pt), piece?.toLowerCase()].filter(Boolean).join("_");
+    }
+  }
+
+  let connectors = 0;
+  // The tile generator is openGrid; Multiboard tiles are a different design.
+  if (board.tile.export && board.pitchMm === 28) {
+    for (const j of tileJobs(board)) jobs.set(j.key, j);
+    connectors = connectorCount(tileLayout(board));
+    if (connectors) {
+      const key = renderKey(CONNECTOR_SCAD, {});
+      jobs.set(key, { key, name: "openGrid connector", piece: null, scadPath: CONNECTOR_SCAD, defines: {}, quantity: connectors, fileName: "opengrid-connector", summary: "" });
     }
   }
 
@@ -136,7 +205,7 @@ export function buildExportPlan(board: Board, partTypes: PartType[]): ExportPlan
     used.set(j.fileName, n);
     j.fileName = `${j.fileName}${n > 1 ? `-${n}` : ""}_x${j.quantity}.stl`;
   }
-  return { jobs: list, manual: [...manual.values()] };
+  return { jobs: list, manual: [...manual.values()], runs, connectors };
 }
 
 const csvCell = (s: string | number) => {
@@ -148,5 +217,6 @@ export function partsCsv(plan: ExportPlan): string {
   const rows: (string | number)[][] = [["file", "part", "piece", "quantity", "parameters"]];
   for (const j of plan.jobs) rows.push([j.fileName, j.name, j.piece ?? "", j.quantity, j.summary]);
   for (const m of plan.manual) rows.push(["", m.name, "(custom, not generated)", m.quantity, ""]);
+  for (const r of plan.runs) rows.push(["", r.name, `(run of ${r.lengthCells} cells, printed as ${r.segments.join(" + ")})`, r.quantity, ""]);
   return rows.map((r) => r.map(csvCell).join(",")).join("\n") + "\n";
 }

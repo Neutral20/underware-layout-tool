@@ -9,7 +9,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { generatorById } from "../model/library";
-import { outlineFromStl, type Outline } from "../model/outline";
+import { outlineFromStl, type Outline, type Pt } from "../model/outline";
+import { runSpec, segmentPart, segmentsFor } from "../model/runs";
 import type { Board, PartType } from "../model/types";
 import { outlineKey, rendersFor } from "./plan";
 
@@ -91,6 +92,58 @@ export async function measure(board: Board, pt: PartType) {
 }
 
 /**
+ * The pieces a part's outline is made of: the part itself, or for a
+ * straight cut to fit the printer, each segment in order (longest first,
+ * from the run's start), so the board shows exactly what will be printed.
+ */
+function piecesOf(board: Board, pt: PartType): PartType[] {
+  const segs = segmentsFor(board, pt);
+  return segs && segs.length > 1 ? segs.map((n) => segmentPart(pt, n)) : [pt];
+}
+
+const composed = new Map<string, Outline>();
+
+/** Join segment outlines end to end down the run. */
+export function joinOutlines(parts: { outline: Outline; cells: number }[], pitch: number): Outline {
+  const loops: Pt[][] = [];
+  let y = 0, w = 0, d = 0, end = 0;
+  for (const { outline, cells } of parts) {
+    for (const l of outline.loops) loops.push(l.map(([px, py]) => [px, py + y] as Pt));
+    w = Math.max(w, outline.sizeMm[0]);
+    d = Math.max(d, outline.sizeMm[2]);
+    end = y + outline.sizeMm[1];
+    y += cells * pitch;
+  }
+  return { loops, sizeMm: [w, end, d] };
+}
+
+/** Outline state for a part, joining segments for a cut straight. */
+function stateOf(board: Board, pt: PartType): OutlineState | undefined {
+  const pieces = piecesOf(board, pt);
+  if (pieces.length === 1) {
+    const k = outlineKey(board, pt);
+    if (!k) return undefined;
+    return peekOutline(k) ?? (failures.has(k) ? { status: "failed", error: failures.get(k)! } : { status: "measuring" });
+  }
+  const keys = pieces.map((q) => outlineKey(board, q)!);
+  const joinKey = keys.join("|");
+  const hit = composed.get(joinKey);
+  if (hit) return { status: "ready", outline: hit };
+  const states = keys.map((k) => peekOutline(k) ?? (failures.has(k) ? { status: "failed" as const, error: failures.get(k)! } : { status: "measuring" as const }));
+  const failed = states.find((s) => s.status === "failed");
+  if (failed) return failed;
+  if (states.some((s) => s.status !== "ready")) return { status: "measuring" };
+  const lp = runSpec(pt)!.lengthParam;
+  const r = pieces.map((q) => Number(q.params[lp]));
+  const o = joinOutlines(
+    states.map((s, i) => ({ outline: (s as { outline: Outline }).outline, cells: r[i] })),
+    board.pitchMm,
+  );
+  composed.set(joinKey, o);
+  return { status: "ready", outline: o };
+}
+
+/**
  * Outline states for every generated part type on the board, measuring
  * missing ones in the background. Waits a moment after a change so typing
  * a number doesn't queue a render per keystroke.
@@ -108,13 +161,16 @@ export function useOutlines(board: Board, partTypes: PartType[]) {
     return partTypes.filter((pt) => ids.has(pt.id) && pt.generatorId);
   }, [board.placements, partTypes]);
 
-  const keys = useMemo(() => new Map(used.map((pt) => [pt.id, outlineKey(board, pt)])), [used, board]);
+  // Segment keys too, so a printer change that re-cuts a run is picked up.
+  const keys = useMemo(() => new Map(used.map((pt) => [pt.id, piecesOf(board, pt).map((q) => outlineKey(board, q)).join("|")])), [used, board]);
 
   useEffect(() => {
     const t = setTimeout(() => {
       for (const pt of used) {
-        const k = keys.get(pt.id);
-        if (k && !failures.has(k)) void measure(board, pt);
+        for (const q of piecesOf(board, pt)) {
+          const k = outlineKey(board, q);
+          if (k && !failures.has(k)) void measure(board, q);
+        }
       }
     }, 700);
     return () => clearTimeout(t);
@@ -122,10 +178,9 @@ export function useOutlines(board: Board, partTypes: PartType[]) {
 
   return useMemo(() => {
     const states = new Map<string, OutlineState>();
-    for (const [id, k] of keys) {
-      if (!k) continue;
-      const s = peekOutline(k) ?? (failures.has(k) ? { status: "failed" as const, error: failures.get(k)! } : { status: "measuring" as const });
-      states.set(id, s);
+    for (const pt of used) {
+      const s = stateOf(board, pt);
+      if (s) states.set(pt.id, s);
     }
     return states;
     // version: re-read when a measurement lands.
@@ -135,8 +190,10 @@ export function useOutlines(board: Board, partTypes: PartType[]) {
 
 /** Forget a failed measurement so it can be tried again. */
 export function retryOutline(board: Board, pt: PartType) {
-  const k = outlineKey(board, pt);
-  if (!k) return;
-  failures.delete(k);
-  void measure(board, pt);
+  for (const q of piecesOf(board, pt)) {
+    const k = outlineKey(board, q);
+    if (!k) continue;
+    failures.delete(k);
+    void measure(board, q);
+  }
 }

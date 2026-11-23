@@ -3,7 +3,8 @@
     "BOSL2": "1351a9f7e5f30a95228e580d167fd4f2e184ad2c",
     "QuackWorks": "e0c1cb7ec78dd9e9a8476ed739bd3402074354f3",
     "openGridUnderware": "Underware for openGrid by David D, 3MF from MakerWorld/Printables (2025-08-10)",
-    "Monokini": "fa601de311e34fcbd238a7b3be4f8ac5b6e59986"
+    "Monokini": "fa601de311e34fcbd238a7b3be4f8ac5b6e59986",
+    "openGridConnector": "openGrid connector by David D, from the openGrid 3MF (BambuStudio 01.10.01.50, 2025-03-21)"
   },
   "dirs": [
     {
@@ -59,6 +60,15 @@
         "monokini_S_channel.scad",
         "monokini_T_channel.scad",
         "monokini_X_channel.scad"
+      ]
+    },
+    {
+      "src": "openGrid",
+      "mount": "/openGrid",
+      "files": [
+        "openGrid_Connector.scad",
+        "openGrid_Connector.stl",
+        "openGrid.scad"
       ]
     },
     {

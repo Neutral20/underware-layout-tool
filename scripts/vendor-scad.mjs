@@ -52,12 +52,17 @@ const out = "public/scad";
 // Only this script's folders; other vendored sources (openGridUnderware) stay.
 fs.rmSync(`${out}/BOSL2`, { recursive: true, force: true });
 fs.rmSync(`${out}/Underware`, { recursive: true, force: true });
+fs.rmSync(`${out}/openGrid`, { recursive: true, force: true });
 fs.mkdirSync(`${out}/BOSL2`, { recursive: true });
 fs.mkdirSync(`${out}/Underware`, { recursive: true });
+fs.mkdirSync(`${out}/openGrid`, { recursive: true });
 for (const f of boslFiles) fs.copyFileSync(path.join(bosl, f), `${out}/BOSL2/${f}`);
 fs.copyFileSync(path.join(bosl, "LICENSE"), `${out}/BOSL2/LICENSE`);
 for (const f of UNDERWARE) fs.copyFileSync(path.join(quack, "Underware", f), `${out}/Underware/${f}`);
 fs.copyFileSync(path.join(quack, "LICENSE"), `${out}/Underware/LICENSE`);
+// BlackjackDuck's openGrid tile generator (design by David D), for the board tiles.
+fs.copyFileSync(path.join(quack, "openGrid", "openGrid.scad"), `${out}/openGrid/openGrid.scad`);
+fs.copyFileSync(path.join(quack, "LICENSE"), `${out}/openGrid/LICENSE`);
 
 // Small source patches so the SCADs render in OpenSCAD WASM. Each one must
 // leave the geometry unchanged (checked by rendering before and after).

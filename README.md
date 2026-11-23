@@ -41,6 +41,14 @@ How segments join: butt joints on cell lines. None of these straights has a join
 
 Any other generated part bigger than the bed is flagged with a "doesn't fit the bed" warning. Item holders print on their backer, so their bed footprint isn't checked.
 
+## Space and tiles
+
+Enter the space in mm and **Fit board** sizes the board to the whole cells that fit (700 × 1200 mm → 25 × 42 cells, 24 mm spare).
+
+The board is printed as openGrid tiles from BlackjackDuck's openGrid tile generator (`public/scad/openGrid/openGrid.scad`, vendored from the same QuackWorks commit). **Biggest for the printer** splits the board into the largest tiles the bed takes, as evenly as possible (21 × 60 on the X2D: three columns of 7, rows of 9, 9, 9, 9, 8, 8, 8, so 12 tiles of 9×7 and 9 of 8×7). **Fixed size** keeps square tiles of N cells with a smaller last row or column (older layouts open in this mode at 7). The board draws the seams either way. Full, Lite or Heavy tiles; screw holes at the corners, everywhere or none; chamfered outside corners; connector holes on every edge, so identical sizes are one print, turned or not.
+
+With **Include tiles in the export** ticked (the default for new layouts), the STL zip gets one file per tile size with the count to print. A 9 × 9 Full tile takes about 45 s to render. Tiles join with openGrid connectors, k − 1 per seam of k cells; the count goes in `parts.csv`, and the connectors themselves come from [openGrid](https://www.printables.com/model/1214361-opengrid-walldesk-mounting-framework-and-ecosystem) by David D, since there's no SCAD for them. Tiles are openGrid (28 mm) only.
+
 ## STL export
 
 The Export STLs panel renders every placed Underware part in the browser with OpenSCAD compiled to WebAssembly (`openscad-wasm-prebuilt`, Manifold backend) and BOSL2, then downloads a zip:
@@ -74,6 +82,8 @@ Note: the stock Underware 2.0 SCADs use a 25 mm (Multiboard) grid. `Grid_Size=28
 Parametric clip-on channels: [Monokini](https://github.com/pleite/Monokini) by Pedro Leite, CC BY-NC-SA 4.0 per the SCAD headers (the repo's LICENSE file is AGPL-3.0).
 
 Clip-on channels: [Underware for openGrid](https://www.printables.com/model/1214427-underware-for-opengrid-manage-your-cables-lite-ly) by David D, CC BY-NC-SA 4.0. The meshes are vendored in `public/scad/openGridUnderware/pieces`.
+
+Board tiles: [openGrid](https://www.printables.com/model/1214361-opengrid-walldesk-mounting-framework-and-ecosystem) by David D, generated with the [openGrid tile generator](https://makerworld.com/en/models/1304337-opengrid-tile-generator) by BlackjackDuck (Andy Levesque), CC BY-NC-SA 4.0, vendored in `public/scad/openGrid`.
 
 Part generators are the [QuackWorks](https://github.com/AndyLevesque/QuackWorks) Underware 2.0 SCADs by Hands on Katie and BlackjackDuck (Andy Levesque), licensed CC BY-NC-SA 4.0. Copies of the SCADs are vendored in `public/scad/Underware` under that licence, along with [BOSL2](https://github.com/BelfrySCAD/BOSL2) (BSD 2-clause).
 Part generators are the [QuackWorks](https://github.com/AndyLevesque/QuackWorks) Underware 2.0 SCADs by Hands on Katie and BlackjackDuck (Andy Levesque), licensed CC BY-NC-SA 4.0. The openGrid clip-on channels are David D's Underware for openGrid, with parametric versions from Pedro Leite's [Monokini](https://github.com/pleite/Monokini) (CC BY-NC-SA 4.0). This tool is shared under the same terms: free to use and remix with credit, non-commercial, changes shared alike. Copies of the SCADs are vendored in `public/scad/Underware` under that licence, along with [BOSL2](https://github.com/BelfrySCAD/BOSL2) (BSD 2-clause).

@@ -4,6 +4,7 @@
 import { generatorById, scadPath } from "../model/library";
 import { mountById } from "./mounts";
 import { segmentPart, segmentsFor } from "../model/runs";
+import { connectorCount, tileCounts, tileLayout } from "../model/tiles";
 import type { Board, ParamValue, PartType } from "../model/types";
 
 export interface RenderJob {
@@ -40,6 +41,39 @@ export interface ExportPlan {
   manual: ManualItem[];
   /** Straights cut to fit the printer, for the parts list. */
   runs: RunSplit[];
+  /** openGrid connectors to join the tiles (0 when tiles aren't exported). */
+  connectors: number;
+}
+
+export const TILE_SCAD = "/openGrid/openGrid.scad";
+
+/** Render jobs for the board's openGrid tiles, one per distinct tile size. */
+export function tileJobs(board: Board): RenderJob[] {
+  const t = board.tile;
+  const variant = t.variant ?? "Full";
+  return tileCounts(tileLayout(board)).map(({ w, h, quantity }) => {
+    const defines: Record<string, ParamValue> = {
+      Full_or_Lite: variant,
+      Board_Width: w,
+      Board_Height: h,
+      Tile_Size: board.pitchMm,
+      Screw_Mounting: t.screws ?? "Corners",
+      Chamfers: "Corners",
+      Connector_Holes: true,
+      Fill_Space_Mode: "None",
+      Stack_Count: 1,
+    };
+    return {
+      key: renderKey(TILE_SCAD, defines),
+      name: `openGrid tile ${w}×${h} (${variant})`,
+      piece: null,
+      scadPath: TILE_SCAD,
+      defines,
+      quantity,
+      fileName: `opengrid-tile_${w}x${h}-${variant.toLowerCase()}`,
+      summary: summarize(defines, new Set(["Fill_Space_Mode", "Stack_Count", "Connector_Holes"])),
+    };
+  });
 }
 
 const slug = (s: string) =>
@@ -150,6 +184,13 @@ export function buildExportPlan(board: Board, partTypes: PartType[]): ExportPlan
     }
   }
 
+  let connectors = 0;
+  // The tile generator is openGrid; Multiboard tiles are a different design.
+  if (board.tile.export && board.pitchMm === 28) {
+    for (const j of tileJobs(board)) jobs.set(j.key, j);
+    connectors = connectorCount(tileLayout(board));
+  }
+
   // Make file names unique and add the quantity, e.g. "i-channel_1x5-h12_base_x3.stl".
   const used = new Map<string, number>();
   const list = [...jobs.values()];
@@ -158,7 +199,7 @@ export function buildExportPlan(board: Board, partTypes: PartType[]): ExportPlan
     used.set(j.fileName, n);
     j.fileName = `${j.fileName}${n > 1 ? `-${n}` : ""}_x${j.quantity}.stl`;
   }
-  return { jobs: list, manual: [...manual.values()], runs };
+  return { jobs: list, manual: [...manual.values()], runs, connectors };
 }
 
 const csvCell = (s: string | number) => {
@@ -170,6 +211,7 @@ export function partsCsv(plan: ExportPlan): string {
   const rows: (string | number)[][] = [["file", "part", "piece", "quantity", "parameters"]];
   for (const j of plan.jobs) rows.push([j.fileName, j.name, j.piece ?? "", j.quantity, j.summary]);
   for (const m of plan.manual) rows.push(["", m.name, "(custom, not generated)", m.quantity, ""]);
+  if (plan.connectors) rows.push(["", "openGrid connector", "(not generated: print from openGrid by David D)", plan.connectors, ""]);
   for (const r of plan.runs) rows.push(["", r.name, `(run of ${r.lengthCells} cells, printed as ${r.segments.join(" + ")})`, r.quantity, ""]);
   return rows.map((r) => r.map(csvCell).join(",")).join("\n") + "\n";
 }

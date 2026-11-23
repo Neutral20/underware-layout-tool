@@ -35,7 +35,7 @@ export function newLayout(): Layout {
       widthCells: 21,
       heightCells: 60,
       pitchMm: 28,
-      tile: { widthCells: 7, heightCells: 7, variant: "Full" },
+      tile: { widthCells: 7, heightCells: 7, variant: "Full", mode: "printer", export: true },
       placements: [],
     },
     partTypes: [],

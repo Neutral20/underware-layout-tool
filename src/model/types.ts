@@ -18,9 +18,16 @@ export interface Envelope {
 }
 
 export interface TileSpec {
+  /** Tile size for "fixed" mode. 0 means one tile (no seams). */
   widthCells: number;
   heightCells: number;
-  variant: "Full" | "Lite";
+  variant: "Full" | "Lite" | "Heavy";
+  /** "printer": as big as the printer's bed takes. Missing means "fixed" (older layouts). */
+  mode?: "printer" | "fixed";
+  /** Screw holes in the tiles (Full and Heavy). Missing means "Corners". */
+  screws?: "Corners" | "Everywhere" | "None";
+  /** Render the tiles with the export. Missing means no (older layouts). */
+  export?: boolean;
 }
 
 export interface Board {

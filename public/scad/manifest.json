@@ -62,6 +62,13 @@
       ]
     },
     {
+      "src": "openGrid",
+      "mount": "/openGrid",
+      "files": [
+        "openGrid.scad"
+      ]
+    },
+    {
       "src": "openGridUnderware/pieces",
       "mount": "/openGridUnderware/pieces",
       "files": [

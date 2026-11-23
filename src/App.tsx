@@ -6,6 +6,7 @@ import { checkBoard, resolve, type OutlineLookup } from "./model/geometry";
 import { retryOutline, useOutlines } from "./render/outlines";
 import { PartPicker } from "./components/PartPicker";
 import { PrinterPanel } from "./components/PrinterPanel";
+import { TilesPanel } from "./components/TilesPanel";
 import { loadSaved, newLayout, parseLayout, reducer, save, type Action, type Occupied, type State } from "./state/store";
 
 function init(): State {
@@ -119,19 +120,6 @@ export default function App() {
                 <option value={25}>25 mm (Multiboard)</option>
               </select>
             </label>
-            <label className="field">
-              <span>Tile (cells)</span>
-              <input
-                type="number"
-                min={0}
-                value={board.tile.widthCells}
-                title="Tile size for seam lines. 0 hides seams."
-                onChange={(e) => {
-                  const n = num(e.target.value, 0);
-                  dispatch({ type: "board", patch: { tile: { widthCells: n, heightCells: n } } });
-                }}
-              />
-            </label>
           </div>
           <p className="muted">
             {board.widthCells * board.pitchMm} × {board.heightCells * board.pitchMm} mm
@@ -139,6 +127,12 @@ export default function App() {
         </section>
 
         <PrinterPanel board={board} onChange={(printer) => dispatch({ type: "board", patch: { printer } })} />
+
+        <TilesPanel
+          board={board}
+          onTile={(tile) => dispatch({ type: "board", patch: { tile } })}
+          onSize={(widthCells, heightCells) => dispatch({ type: "board", patch: { widthCells, heightCells } })}
+        />
 
         <PartPicker
           pitchMm={board.pitchMm}
@@ -180,7 +174,7 @@ export default function App() {
           <p>
             Underware by <a href="https://www.youtube.com/@HandsOnKatie" target="_blank" rel="noreferrer">Hands on Katie</a> and{" "}
             <a href="https://github.com/AndyLevesque/QuackWorks" target="_blank" rel="noreferrer">BlackjackDuck (Andy Levesque)</a>.
-            Underware for openGrid by David D. Parametric openGrid channels by{" "}
+            openGrid and Underware for openGrid by David D. openGrid tile generator by BlackjackDuck. Parametric openGrid channels by{" "}
             <a href="https://github.com/pleite/Monokini" target="_blank" rel="noreferrer">Pedro Leite</a>.
           </p>
           <p>

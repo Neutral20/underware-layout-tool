@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import type { Resolved } from "../model/geometry";
 import { labelPoint, loopsPath } from "../model/outline";
 import type { Board, Issue } from "../model/types";
+import { seams, tileLayout } from "../model/tiles";
 
 interface Props {
   board: Board;
@@ -60,12 +61,14 @@ export function BoardView({ board, resolved, issues, selectedId, pxPerMm, onSele
   };
 
   const cellLines: JSX.Element[] = [];
+  const sm = seams(tileLayout(board));
+  const seamX = new Set(sm.x), seamY = new Set(sm.y);
   for (let i = 1; i < board.widthCells; i++) {
-    const seam = board.tile.widthCells > 0 && i % board.tile.widthCells === 0;
+    const seam = seamX.has(i);
     cellLines.push(<line key={`v${i}`} x1={i * p} y1={0} x2={i * p} y2={Hmm} className={seam ? "seam" : "cell"} />);
   }
   for (let j = 1; j < board.heightCells; j++) {
-    const seam = board.tile.heightCells > 0 && j % board.tile.heightCells === 0;
+    const seam = seamY.has(j);
     cellLines.push(<line key={`h${j}`} x1={0} y1={j * p} x2={Wmm} y2={j * p} className={seam ? "seam" : "cell"} />);
   }
 

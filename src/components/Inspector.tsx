@@ -153,7 +153,7 @@ function KindEditor({ shape, connection, onKind }: { shape: string; connection: 
         </select>
       </label>
       <div className="field">
-        <span>Connection</span>
+        <span>Mounting</span>
         <ConnectionPicker value={connection} onChange={(c) => onKind(shape, c)} reasonFor={(c) => reason(shape, c)} />
       </div>
     </>

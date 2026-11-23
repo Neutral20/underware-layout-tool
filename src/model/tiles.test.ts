@@ -47,10 +47,11 @@ describe("tiles", () => {
     expect(plan.jobs.map((j) => [j.fileName, j.defines.Board_Width, j.defines.Board_Height])).toEqual([
       ["opengrid-tile_9x7-full_x12.stl", 9, 7],
       ["opengrid-tile_8x7-full_x9.stl", 8, 7],
+      ["opengrid-connector_x214.stl", undefined, undefined],
     ]);
     expect(plan.jobs[0].defines).toMatchObject({ Full_or_Lite: "Full", Screw_Mounting: "Corners", Tile_Size: 28 });
     expect(plan.connectors).toBe(2 * 53 + 6 * 18);
-    expect(partsCsv(plan)).toContain("openGrid connector");
+    expect(partsCsv(plan)).toContain("opengrid-connector_x214.stl,openGrid connector,,214");
     // Off unless asked, and never for Multiboard.
     expect(buildExportPlan(board(21, 60), []).jobs).toHaveLength(0);
     expect(buildExportPlan({ ...board(21, 60, { export: true }), pitchMm: 25 }, []).jobs).toHaveLength(0);

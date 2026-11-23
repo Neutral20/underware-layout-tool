@@ -106,7 +106,7 @@ export function TilesPanel({ board, onTile, onSize }: Props) {
       </label>
       <p className="muted">
         Tiles from BlackjackDuck's <a href={OG_TILE_URL} target="_blank" rel="noreferrer">openGrid tile generator</a>, with connector holes on every
-        edge. Print the connectors from <a href={OG_URL} target="_blank" rel="noreferrer">openGrid</a> by David D.
+        edge. The export includes the connectors too, David D's from <a href={OG_URL} target="_blank" rel="noreferrer">openGrid</a>.
       </p>
     </section>
   );

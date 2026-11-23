@@ -41,11 +41,13 @@ export interface ExportPlan {
   manual: ManualItem[];
   /** Straights cut to fit the printer, for the parts list. */
   runs: RunSplit[];
-  /** openGrid connectors to join the tiles (0 when tiles aren't exported). */
+  /** openGrid connectors to join the tiles, included in jobs (0 when tiles aren't exported). */
   connectors: number;
 }
 
 export const TILE_SCAD = "/openGrid/openGrid.scad";
+/** David D's tile connector (from the openGrid 3MF), wrapped in a SCAD that imports it. */
+export const CONNECTOR_SCAD = "/openGrid/openGrid_Connector.scad";
 
 /** Render jobs for the board's openGrid tiles, one per distinct tile size. */
 export function tileJobs(board: Board): RenderJob[] {
@@ -189,6 +191,10 @@ export function buildExportPlan(board: Board, partTypes: PartType[]): ExportPlan
   if (board.tile.export && board.pitchMm === 28) {
     for (const j of tileJobs(board)) jobs.set(j.key, j);
     connectors = connectorCount(tileLayout(board));
+    if (connectors) {
+      const key = renderKey(CONNECTOR_SCAD, {});
+      jobs.set(key, { key, name: "openGrid connector", piece: null, scadPath: CONNECTOR_SCAD, defines: {}, quantity: connectors, fileName: "opengrid-connector", summary: "" });
+    }
   }
 
   // Make file names unique and add the quantity, e.g. "i-channel_1x5-h12_base_x3.stl".
@@ -211,7 +217,6 @@ export function partsCsv(plan: ExportPlan): string {
   const rows: (string | number)[][] = [["file", "part", "piece", "quantity", "parameters"]];
   for (const j of plan.jobs) rows.push([j.fileName, j.name, j.piece ?? "", j.quantity, j.summary]);
   for (const m of plan.manual) rows.push(["", m.name, "(custom, not generated)", m.quantity, ""]);
-  if (plan.connectors) rows.push(["", "openGrid connector", "(not generated: print from openGrid by David D)", plan.connectors, ""]);
   for (const r of plan.runs) rows.push(["", r.name, `(run of ${r.lengthCells} cells, printed as ${r.segments.join(" + ")})`, r.quantity, ""]);
   return rows.map((r) => r.map(csvCell).join(",")).join("\n") + "\n";
 }

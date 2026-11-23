@@ -37,7 +37,7 @@ https://www.printables.com/model/1214427-underware-for-opengrid-manage-your-cabl
 and Monokini by Pedro Leite, https://github.com/pleite/Monokini
 Board tiles: openGrid by David D, made with the openGrid tile generator
 by BlackjackDuck (Andy Levesque), https://makerworld.com/en/models/1304337
-Print the tile connectors from openGrid:
+Tile connectors: openGrid connector by David D, CC BY 4.0, from
 https://www.printables.com/model/1214361-opengrid-walldesk-mounting-framework-and-ecosystem
 All licensed CC BY-NC-SA 4.0. Rendered with OpenSCAD and BOSL2.
 
@@ -179,7 +179,7 @@ export function ExportPanel({ board, partTypes, onMount }: Props) {
               Segments butt together on cell lines.
             </p>
           ) : null}
-          {plan.connectors ? <p className="muted">Plus {plan.connectors} openGrid connectors to join the tiles (print them from openGrid; listed in parts.csv).</p> : null}
+          {plan.connectors ? <p className="muted">Includes {plan.connectors} openGrid connectors to join the tiles.</p> : null}
           {plan.manual.length ? (
             <p className="muted">Custom parts aren't generated: {plan.manual.map((m) => `${m.name} ×${m.quantity}`).join(", ")}.</p>
           ) : null}

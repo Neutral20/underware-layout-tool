@@ -48,6 +48,9 @@ export interface PartType {
    */
   generatorId?: string;
   params: Record<string, ParamValue>;
+  /** Picker choices (see catalog.ts). Old parts without them are matched by generator. */
+  shape?: string;
+  connection?: string;
   /** Used only when there's no generator. */
   mount?: { wCells: number; hCells: number };
   envelope: Envelope;

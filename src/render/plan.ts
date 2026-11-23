@@ -72,6 +72,8 @@ export function rendersFor(board: Board, pt: PartType): PieceRender[] {
   const isChannel = g.category === "underware-channel" && !g.onePiece;
   // Channels space their mount holes by Grid_Size; match the board.
   if (isChannel) base.Grid_Size = board.pitchMm;
+  // The item holder spaces its mounts for openGrid (28) or Multiboard (25); follow the board.
+  if ("Mounting_Surface" in base && base.Mounting_Surface !== "Custom") base.Mounting_Surface = board.pitchMm === 25 ? "Multiboard" : "openGrid";
   const pieces: RenderJob["piece"][] = isChannel ? ["Base", "Top"] : [null];
   const mount = mountById(board.channelMount);
   return pieces.map((piece) => {

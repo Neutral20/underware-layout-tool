@@ -98,7 +98,8 @@ const width = (name = "Channel_Width_in_Units", label = "Width (units)"): ParamS
   min: 1,
   max: 6,
 });
-const mounting: ParamSpec = {
+// Only the I channel SCAD offers Direct Multipoint Screw.
+const mountingFor = (multipoint: boolean): ParamSpec => ({
   name: "Mounting_Method",
   label: "Mounting",
   kind: "choice",
@@ -106,12 +107,13 @@ const mounting: ParamSpec = {
   choices: [
     "Threaded Snap Connector",
     "Direct Multiboard Screw",
-    "Direct Multipoint Screw",
+    ...(multipoint ? ["Direct Multipoint Screw"] : []),
     "Magnet",
     "Wood Screw",
     "Flat",
   ],
-};
+});
+const mounting = mountingFor(false);
 
 const CHANNEL = "underware-channel" as const;
 
@@ -126,7 +128,7 @@ export const GENERATORS: Generator[] = [
       width(),
       { name: "Channel_Length_Units", label: "Length (units)", kind: "int", default: 5, min: 1, max: 30 },
       height,
-      mounting,
+      mountingFor(true),
     ],
     footprint: (p) => ({ wCells: int(p.Channel_Width_in_Units), hCells: int(p.Channel_Length_Units, 5) }),
   },
@@ -315,6 +317,25 @@ export function fixedFootprint(wMm: number, hMm: number, depthMm: number, pitch:
   return { wCells, hCells, envelope: { leftMm: exW, rightMm: exW, topMm: exH, bottomMm: exH, depthMm } };
 }
 
+const OG_PIECE: Generator = {
+  id: "og-piece",
+  name: "Clip-on piece",
+  category: CHANNEL,
+  scadDir: "openGridUnderware",
+  scadFile: "openGrid_Underware.scad",
+  sourceUrl: OG_URL,
+  color: "#0891b2",
+  onePiece: true,
+  params: [{ name: "Piece", label: "Piece", kind: "choice", default: "curve-1", choices: ogPieces.map((p) => p.id), choiceLabels: ogPieces.map((p) => p.label) }],
+  footprint: (p, pitch) => {
+    const [w, h, d] = ogPiece(p.Piece).sizeMm;
+    return fixedFootprint(w, h, d, pitch);
+  },
+  nameFor: (p) => `Clip-on ${ogPiece(p.Piece).label.toLowerCase()}`,
+  passesOver: (p) => ogPiece(p.Piece).id.startsWith("bridge"),
+  notes: OG_NOTE,
+};
+
 export const OG_GENERATORS: Generator[] = [
   {
     id: "og-straight",
@@ -329,25 +350,23 @@ export const OG_GENERATORS: Generator[] = [
     footprint: (p, pitch) => fixedFootprint(26.4, int(p.Length_Units, 5) * 28, 22, pitch),
     notes: OG_NOTE,
   },
-  {
-    id: "og-piece",
-    name: "Clip-on piece",
-    category: CHANNEL,
-    scadDir: "openGridUnderware",
-    scadFile: "openGrid_Underware.scad",
-    sourceUrl: OG_URL,
-    color: "#0891b2",
-    onePiece: true,
-    params: [{ name: "Piece", label: "Piece", kind: "choice", default: "curve-1", choices: ogPieces.map((p) => p.id), choiceLabels: ogPieces.map((p) => p.label) }],
-    footprint: (p, pitch) => {
-      const [w, h, d] = ogPiece(p.Piece).sizeMm;
-      return fixedFootprint(w, h, d, pitch);
-    },
-    nameFor: (p) => `Clip-on ${ogPiece(p.Piece).label.toLowerCase()}`,
-    passesOver: (p) => ogPiece(p.Piece).id.startsWith("bridge"),
-    notes: OG_NOTE,
-  },
+  OG_PIECE,
+  // The same fixed pieces, narrowed to one shape for the shape picker.
+  ogSubset("og-curve", "Clip-on curve", "Radius", (id) => id.startsWith("curve-"), "#0891b2"),
+  ogSubset("og-y", "Clip-on Y split", "Version", (id) => id.startsWith("y"), "#0e7490"),
+  ogSubset("og-end", "Clip-on end piece", "Length", (id) => id.startsWith("end-"), "#155e75"),
 ];
+
+function ogSubset(id: string, name: string, label: string, keep: (pieceId: string) => boolean, color: string): Generator {
+  const list = ogPieces.filter((p) => keep(p.id));
+  return {
+    ...OG_PIECE,
+    id,
+    name,
+    color,
+    params: [{ name: "Piece", label, kind: "choice", default: list[0].id, choices: list.map((p) => p.id), choiceLabels: list.map((p) => p.label) }],
+  };
+}
 
 // Item holder. Kept as a factory so other holder SCADs with the same
 // backer can reuse it.

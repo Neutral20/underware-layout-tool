@@ -4,28 +4,11 @@ import { ExportPanel } from "./components/ExportPanel";
 import { Inspector } from "./components/Inspector";
 import { checkBoard, resolve, type OutlineLookup } from "./model/geometry";
 import { retryOutline, useOutlines } from "./render/outlines";
-import { GENERATORS, MK_GENERATORS, OG_GENERATORS, type Generator } from "./model/library";
+import { PartPicker } from "./components/PartPicker";
 import { loadSaved, newLayout, parseLayout, reducer, save, type Action, type Occupied, type State } from "./state/store";
 
 function init(): State {
   return { layout: loadSaved() ?? newLayout(), selectedId: null };
-}
-
-function LibrarySection({ title, hint, generators, onAdd }: { title: string; hint: string; generators: Generator[]; onAdd(id: string): void }) {
-  return (
-    <section>
-      <h2>{title}</h2>
-      <div className="library">
-        {generators.map((g) => (
-          <button key={g.id} onClick={() => onAdd(g.id)} title={g.notes}>
-            <span className="swatch" style={{ background: g.color }} />
-            {g.name}
-          </button>
-        ))}
-      </div>
-      <p className="muted">{hint}</p>
-    </section>
-  );
 }
 
 /** Cells each placed part reaches with its real shape, so new parts land clear of them. */
@@ -154,34 +137,11 @@ export default function App() {
           </p>
         </section>
 
-        <LibrarySection
-          title="Clip-on channels, any size"
-          hint="Monokini by Pedro Leite. Snaps onto openGrid; set width, lengths and curve size on the right."
-          generators={MK_GENERATORS}
-          onAdd={(id) => dispatch({ type: "addFromGenerator", generatorId: id })}
+        <PartPicker
+          pitchMm={board.pitchMm}
+          onAdd={(shape, connection) => dispatch({ type: "addPart", shape, connection })}
+          onAddCustom={() => dispatch({ type: "addCustom" })}
         />
-        <LibrarySection
-          title="Clip-on pieces (David D)"
-          hint="The fixed pieces from Underware for openGrid. Pick the piece on the right."
-          generators={OG_GENERATORS}
-          onAdd={(id) => dispatch({ type: "addFromGenerator", generatorId: id })}
-        />
-
-        <section>
-          <h2>Add Underware 2.0 part (QuackWorks)</h2>
-          <div className="library">
-            {GENERATORS.map((g) => (
-              <button key={g.id} onClick={() => dispatch({ type: "addFromGenerator", generatorId: g.id })} title={g.scadFile}>
-                <span className="swatch" style={{ background: g.color }} />
-                {g.name}
-              </button>
-            ))}
-            <button onClick={() => dispatch({ type: "addCustom" })}>
-              <span className="swatch" style={{ background: "#64748b" }} />
-              Custom part (manual size)
-            </button>
-          </div>
-        </section>
 
         <ExportPanel board={board} partTypes={partTypes} onMount={(id) => dispatch({ type: "board", patch: { channelMount: id } })} />
 
@@ -262,6 +222,7 @@ export default function App() {
             sharedCount={board.placements.filter((p) => p.partTypeId === selected.partType.id).length}
             onPlacement={(patch) => dispatch({ type: "updatePlacement", placementId: selected.placement.id, patch })}
             onPartType={(patch) => dispatch({ type: "updatePartType", partTypeId: selected.partType.id, patch })}
+            onKind={(shape, connection) => dispatch({ type: "setKind", partTypeId: selected.partType.id, shape, connection })}
             onRotate={() => dispatch({ type: "rotate", placementId: selected.placement.id })}
             onDuplicate={() => dispatch({ type: "duplicate", placementId: selected.placement.id })}
             onRemove={() => dispatch({ type: "removePlacement", placementId: selected.placement.id })}

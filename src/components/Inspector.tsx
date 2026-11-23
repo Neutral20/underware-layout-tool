@@ -1,5 +1,7 @@
 import type { Resolved } from "../model/geometry";
 import { generatorById, scadUrl, type ParamSpec } from "../model/library";
+import { CONNECTIONS, SHAPES, kindOf, lookup, optionOf, visibleParams, type ConnectionId } from "../model/catalog";
+import { ConnectionPicker } from "./PartPicker";
 import type { Board, Envelope, ParamValue, PartType, Placement } from "../model/types";
 import type { OutlineState } from "../render/outlines";
 
@@ -12,6 +14,7 @@ interface Props {
   board: Board;
   onPlacement(patch: Partial<Placement>): void;
   onPartType(patch: Partial<PartType>): void;
+  onKind(shape: string, connection: ConnectionId): void;
   onRotate(): void;
   onDuplicate(): void;
   onRemove(): void;
@@ -103,10 +106,46 @@ function ShapeInfo({ r, shape, onRetry }: { r: Resolved; shape?: OutlineState; o
   );
 }
 
-export function Inspector({ r, shape, onRetryShape, sharedCount, board, onPlacement, onPartType, onRotate, onDuplicate, onRemove }: Props) {
+/** Shape + connection for a placed part. Changing either swaps the generator, keeping matching sizes. */
+function KindEditor({ shape, connection, onKind }: { shape: string; connection: ConnectionId; onKind(shape: string, c: ConnectionId): void }) {
+  const reason = (s: string, c: ConnectionId) => {
+    const r = lookup(s, c);
+    return "reason" in r ? r.reason : null;
+  };
+  return (
+    <>
+      <label className="field">
+        <span>Shape</span>
+        <select
+          value={shape}
+          onChange={(e) => {
+            const s = e.target.value;
+            // Keep the connection if the new shape has it, else the first one it does have.
+            const c = !reason(s, connection) ? connection : CONNECTIONS.find((x) => !reason(s, x.id))?.id;
+            if (c) onKind(s, c);
+          }}
+        >
+          {SHAPES.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <div className="field">
+        <span>Connection</span>
+        <ConnectionPicker value={connection} onChange={(c) => onKind(shape, c)} reasonFor={(c) => reason(shape, c)} />
+      </div>
+    </>
+  );
+}
+
+export function Inspector({ r, shape, onRetryShape, sharedCount, board, onPlacement, onPartType, onKind, onRotate, onDuplicate, onRemove }: Props) {
   const pitchMm = board.pitchMm;
   const pt = r.partType;
   const g = generatorById(pt.generatorId);
+  const kind = kindOf(pt);
+  const params = g ? visibleParams(g, optionOf(pt)) : [];
   return (
     <div className="inspector">
       <h3>Placement</h3>
@@ -140,13 +179,15 @@ export function Inspector({ r, shape, onRetryShape, sharedCount, board, onPlacem
         </label>
       </div>
 
+      {kind ? <KindEditor shape={kind.shape} connection={kind.connection} onKind={onKind} /> : null}
+
       {g ? (
         <>
           <p className="muted">
             Generator: <a href={scadUrl(g)} target="_blank" rel="noreferrer">{g.scadFile}</a>
             {g.notes ? <><br />{g.notes}</> : null}
           </p>
-          {g.params.map((s) => (
+          {params.map((s) => (
             <ParamInput key={s.name} spec={s} value={pt.params[s.name] ?? s.default} onChange={(v) => onPartType({ params: { ...pt.params, [s.name]: v } })} />
           ))}
           <ShapeInfo r={r} shape={shape} onRetry={onRetryShape} />

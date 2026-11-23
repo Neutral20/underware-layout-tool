@@ -22,7 +22,9 @@ One-time setup: in the repo, **Settings → Pages → Build and deployment → S
 ## What's in v1
 
 - Board in cells (default 21×60), grid pitch 28 mm (openGrid) or 25 mm (Multiboard), tile seams drawn every N cells.
-- Underware 2.0 parts (I, L, T, X, C, S, diagonal, Y, branch split, item holder) with their SCAD parameters. The mount footprint is computed from those params.
+- Two-step part picker: pick how parts attach (clip-in for openGrid, the default; threaded snap; Multiconnect; or screw, magnet or flat), then a shape (straight, corner, curve, T, cross, S jog, diagonal, Y split, branch split, end, bridge, item holder, other clip-in piece). Each pair maps to one generator in `src/model/catalog.ts`; pairs that don't exist are greyed out and say why when clicked. The selected part's shape and connection can be changed in the inspector, which keeps matching sizes and shows only the params that apply.
+- Multiconnect: only the QuackWorks item holder has a Multiconnect back. No Underware channel SCAD (QuackWorks or Monokini) offers one, so channels show it as unavailable.
+- The mount footprint is computed from each generator's params.
 - Custom parts with a manual mount size.
 - Per-side body envelope in mm, for parts whose body overhangs the cells they snap into.
 - Live checks: mount off board (error), body overhang past the board edge with the mm amount (warning), mount overlap (error), body overlap (warning).

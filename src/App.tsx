@@ -5,6 +5,7 @@ import { Inspector } from "./components/Inspector";
 import { checkBoard, resolve, type OutlineLookup } from "./model/geometry";
 import { retryOutline, useOutlines } from "./render/outlines";
 import { PartPicker } from "./components/PartPicker";
+import { PrinterPanel } from "./components/PrinterPanel";
 import { loadSaved, newLayout, parseLayout, reducer, save, type Action, type Occupied, type State } from "./state/store";
 
 function init(): State {
@@ -136,6 +137,8 @@ export default function App() {
             {board.widthCells * board.pitchMm} × {board.heightCells * board.pitchMm} mm
           </p>
         </section>
+
+        <PrinterPanel board={board} onChange={(printer) => dispatch({ type: "board", patch: { printer } })} />
 
         <PartPicker
           pitchMm={board.pitchMm}

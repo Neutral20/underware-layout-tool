@@ -121,6 +121,9 @@ export function BoardView({ board, resolved, issues, selectedId, pxPerMm, onSele
             ) : (
               <rect x={r.x * p + 1} y={r.y * p + 1} width={r.w * p - 2} height={r.h * p - 2} rx={3} className="mount" style={{ fill: r.partType.color }} />
             )}
+            {r.cuts.map(([a, b], i) => (
+              <line key={i} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} className="cut" />
+            ))}
             <text x={cx} y={cy} className="part-label" style={{ fontSize: fs }}>
               {label}
             </text>

@@ -1,6 +1,8 @@
 // Core data model. Cells are the unit of truth for positions; mm is used
 // only for envelopes (overhang) and for display.
 
+import type { PrinterSetting } from "./printers";
+
 export type Rotation = 0 | 90 | 180 | 270;
 
 export type Category = "underware-channel" | "underware-item" | "holder" | "other";
@@ -31,6 +33,8 @@ export interface Board {
   tile: TileSpec;
   /** How channels attach (see render/mounts.ts). Missing means the default. */
   channelMount?: string;
+  /** Printer the parts are cut and packed for. Missing means the default (see printers.ts). */
+  printer?: PrinterSetting;
   placements: Placement[];
 }
 
@@ -77,7 +81,8 @@ export type IssueKind =
   | "mount-off-board"
   | "envelope-overhang"
   | "mount-overlap"
-  | "envelope-overlap";
+  | "envelope-overlap"
+  | "too-big-for-bed";
 
 export interface Issue {
   severity: "error" | "warning";

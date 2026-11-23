@@ -1,5 +1,7 @@
 import { generatorById } from "./library";
 import { fitOffset, loopsBox, overlap, placeLoops, rectLoop, type Box, type Outline, type Pt } from "./outline";
+import { fitsBed, printerFor } from "./printers";
+import { maxSegmentCells, segmentsFor } from "./runs";
 import type { Board, Envelope, Issue, PartType, Placement, Rotation } from "./types";
 
 export const ZERO_ENVELOPE: Envelope = { leftMm: 0, rightMm: 0, topMm: 0, bottomMm: 0, depthMm: 0 };
@@ -71,6 +73,25 @@ export interface Resolved {
   body: Box;
   /** Bridges are made to pass over other channels. */
   passesOver: boolean;
+  /** Segment lengths (cells) for a straight cut to fit the printer; null if it's not a straight. */
+  segments: number[] | null;
+  /** Where those cuts fall on the board, as lines in board mm. */
+  cuts: [Pt, Pt][];
+}
+
+/** Cut lines across a straight of the given segments, placed at x, y (cells) with a rotation. */
+export function cutLines(segments: number[], x: number, y: number, w: number, h: number, rotation: Rotation, pitch: number): [Pt, Pt][] {
+  const out: [Pt, Pt][] = [];
+  const total = segments.reduce((a, b) => a + b, 0);
+  let at = 0;
+  for (let i = 0; i < segments.length - 1; i++) {
+    at += segments[i];
+    // Unrotated, the run goes down the board; 180 and 270 count from the far end.
+    const d = rotation === 180 || rotation === 270 ? total - at : at;
+    if (rotation % 180 === 0) out.push([[x * pitch, (y + d) * pitch], [(x + w) * pitch, (y + d) * pitch]]);
+    else out.push([[(x + d) * pitch, y * pitch], [(x + d) * pitch, (y + h) * pitch]]);
+  }
+  return out;
 }
 
 const isZeroEnv = (e: Envelope) => !e.leftMm && !e.rightMm && !e.topMm && !e.bottomMm;
@@ -116,6 +137,7 @@ export function resolve(board: Board, partTypes: PartType[], outlineFor: Outline
       shapeKind = g ? "estimate" : "box";
     }
     const shapeBox = loopsBox(shape);
+    const segments = g ? segmentsFor(board, pt) : null;
     out.push({
       placement: pl,
       partType: pt,
@@ -136,6 +158,8 @@ export function resolve(board: Board, partTypes: PartType[], outlineFor: Outline
         y1: shapeBox.y1 + r.env.bottomMm,
       },
       passesOver: !!g?.passesOver?.(pt.params),
+      segments,
+      cuts: segments && segments.length > 1 ? cutLines(segments, pl.x, pl.y, r.w, r.h, pl.rotation, p) : [],
     });
   }
   return out;
@@ -167,6 +191,25 @@ export function checkBoard(board: Board, partTypes: PartType[], outlineFor?: Out
     if (r.body.y1 > H * p + e) over.push(`${fmt(r.body.y1 - H * p)} bottom`);
     if (over.length) {
       issues.push({ severity: "warning", kind: "envelope-overhang", placementIds: [id], detail: `${nameOf(r)}: overhangs board edge by ${over.join(", ")}` });
+    }
+  }
+
+  // Does each generated part fit the printer? Straights are cut to fit, so
+  // only their width matters. Parts printed on their backer (item holders)
+  // lie differently on the bed than on the board, so they aren't checked.
+  const { bed, name: printerName } = printerFor(board.printer);
+  for (const r of rs) {
+    const g = generatorById(r.partType.generatorId);
+    if (!g || (g.boardAxes ?? "xy") !== "xy") continue;
+    const wMm = r.sizeMm?.[0] ?? r.w * p, hMm = r.sizeMm?.[1] ?? r.h * p, dMm = r.sizeMm?.[2] ?? r.env.depthMm;
+    const tooBig = r.segments ? maxSegmentCells(board, r.partType) < 1 : !fitsBed(bed, wMm, hMm);
+    if (tooBig || dMm > bed.z) {
+      issues.push({
+        severity: "warning",
+        kind: "too-big-for-bed",
+        placementIds: [r.placement.id],
+        detail: `${nameOf(r)}: ${fmt(wMm)} × ${fmt(hMm)}${dMm > bed.z ? ` × ${fmt(dMm)}` : ""} doesn't fit the ${printerName} bed (${bed.x} × ${bed.y} × ${bed.z} mm)`,
+      });
     }
   }
 

@@ -4,6 +4,8 @@ import { CONNECTIONS, SHAPES, kindOf, lookup, optionOf, visibleParams, type Conn
 import { ConnectionPicker } from "./PartPicker";
 import type { Board, Envelope, ParamValue, PartType, Placement } from "../model/types";
 import type { OutlineState } from "../render/outlines";
+import { maxSegmentCells } from "../model/runs";
+import { printerFor } from "../model/printers";
 
 interface Props {
   r: Resolved;
@@ -106,6 +108,24 @@ function ShapeInfo({ r, shape, onRetry }: { r: Resolved; shape?: OutlineState; o
   );
 }
 
+/** How a straight will be cut for the printer. */
+function RunInfo({ r, board }: { r: Resolved; board: Board }) {
+  if (!r.segments) return null;
+  const max = maxSegmentCells(board, r.partType);
+  const printer = printerFor(board.printer).name;
+  if (max < 1) return <p className="error-text">Too wide for the {printer} bed.</p>;
+  const total = r.segments.reduce((a, b) => a + b, 0);
+  return (
+    <p className="muted">
+      {r.segments.length > 1
+        ? `Prints as ${r.segments.length} segments (${r.segments.join(" + ")} cells), butt-jointed on cell lines. The dashed lines on the board show the cuts.`
+        : `Prints in one piece.`}{" "}
+      Up to {max} cells ({max * board.pitchMm} mm) per piece on the {printer}
+      {board.printer?.diagonal ? ", corner to corner" : ""}. Run: {total} cells, {total * board.pitchMm} mm.
+    </p>
+  );
+}
+
 /** Shape + connection for a placed part. Changing either swaps the generator, keeping matching sizes. */
 function KindEditor({ shape, connection, onKind }: { shape: string; connection: ConnectionId; onKind(shape: string, c: ConnectionId): void }) {
   const reason = (s: string, c: ConnectionId) => {
@@ -190,6 +210,7 @@ export function Inspector({ r, shape, onRetryShape, sharedCount, board, onPlacem
           {params.map((s) => (
             <ParamInput key={s.name} spec={s} value={pt.params[s.name] ?? s.default} onChange={(v) => onPartType({ params: { ...pt.params, [s.name]: v } })} />
           ))}
+          <RunInfo r={r} board={board} />
           <ShapeInfo r={r} shape={shape} onRetry={onRetryShape} />
         </>
       ) : (

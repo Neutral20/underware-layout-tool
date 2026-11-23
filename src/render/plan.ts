@@ -3,6 +3,7 @@
 
 import { generatorById, scadPath } from "../model/library";
 import { mountById } from "./mounts";
+import { segmentPart, segmentsFor } from "../model/runs";
 import type { Board, ParamValue, PartType } from "../model/types";
 
 export interface RenderJob {
@@ -19,6 +20,15 @@ export interface RenderJob {
   summary: string;
 }
 
+/** A straight that is cut into segments to fit the bed. */
+export interface RunSplit {
+  name: string;
+  lengthCells: number;
+  segments: number[];
+  /** Placements of this run. */
+  quantity: number;
+}
+
 export interface ManualItem {
   name: string;
   quantity: number;
@@ -28,6 +38,8 @@ export interface ExportPlan {
   jobs: RenderJob[];
   /** Custom parts: no generator, so nothing to render. */
   manual: ManualItem[];
+  /** Straights cut to fit the printer, for the parts list. */
+  runs: RunSplit[];
 }
 
 const slug = (s: string) =>
@@ -95,6 +107,7 @@ export function buildExportPlan(board: Board, partTypes: PartType[]): ExportPlan
 
   const jobs = new Map<string, RenderJob>();
   const manual = new Map<string, ManualItem>();
+  const runs: RunSplit[] = [];
 
   for (const pt of partTypes) {
     const qty = counts.get(pt.id) ?? 0;
@@ -106,25 +119,34 @@ export function buildExportPlan(board: Board, partTypes: PartType[]): ExportPlan
       manual.set(pt.name, m);
       continue;
     }
-    for (const { piece, scadPath, defines } of rendersFor(board, pt)) {
-      const key = renderKey(scadPath, defines);
-      const existing = jobs.get(key);
-      if (existing) {
-        existing.quantity += qty;
-        continue;
+    // Long straights print as bed-sized segments, butt-jointed on cell lines.
+    const segs = segmentsFor(board, pt);
+    const printed = new Map<number | null, number>();
+    if (segs && segs.length > 1) {
+      runs.push({ name: pt.name, lengthCells: segs.reduce((a, b) => a + b, 0), segments: segs, quantity: qty });
+      for (const n of segs) printed.set(n, (printed.get(n) ?? 0) + qty);
+    } else printed.set(null, qty);
+
+    for (const [len, count] of printed) {
+      const part = len === null ? pt : segmentPart(pt, len);
+      for (const { piece, scadPath, defines } of rendersFor(board, part)) {
+        const key = renderKey(scadPath, defines);
+        const existing = jobs.get(key);
+        if (existing) {
+          existing.quantity += count;
+          continue;
+        }
+        jobs.set(key, {
+          key,
+          name: g.nameFor?.(part.params) ?? g.name,
+          piece,
+          scadPath,
+          defines,
+          quantity: count,
+          fileName: [slug(g.nameFor?.(part.params) ?? g.name), sizeTag(part), piece?.toLowerCase()].filter(Boolean).join("_"),
+          summary: summarize(defines, new Set(["Base_Top_or_Both"])),
+        });
       }
-      jobs.set(key, {
-        key,
-        name: g.nameFor?.(pt.params) ?? g.name,
-        piece,
-        scadPath,
-        defines,
-        quantity: qty,
-        fileName: "",
-        summary: summarize(defines, new Set(["Base_Top_or_Both"])),
-      });
-      // Remember a tag for naming; computed from the part type.
-      jobs.get(key)!.fileName = [slug(g.nameFor?.(pt.params) ?? g.name), sizeTag(pt), piece?.toLowerCase()].filter(Boolean).join("_");
     }
   }
 
@@ -136,7 +158,7 @@ export function buildExportPlan(board: Board, partTypes: PartType[]): ExportPlan
     used.set(j.fileName, n);
     j.fileName = `${j.fileName}${n > 1 ? `-${n}` : ""}_x${j.quantity}.stl`;
   }
-  return { jobs: list, manual: [...manual.values()] };
+  return { jobs: list, manual: [...manual.values()], runs };
 }
 
 const csvCell = (s: string | number) => {
@@ -148,5 +170,6 @@ export function partsCsv(plan: ExportPlan): string {
   const rows: (string | number)[][] = [["file", "part", "piece", "quantity", "parameters"]];
   for (const j of plan.jobs) rows.push([j.fileName, j.name, j.piece ?? "", j.quantity, j.summary]);
   for (const m of plan.manual) rows.push(["", m.name, "(custom, not generated)", m.quantity, ""]);
+  for (const r of plan.runs) rows.push(["", r.name, `(run of ${r.lengthCells} cells, printed as ${r.segments.join(" + ")})`, r.quantity, ""]);
   return rows.map((r) => r.map(csvCell).join(",")).join("\n") + "\n";
 }

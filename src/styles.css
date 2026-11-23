@@ -89,6 +89,8 @@ line.seam { stroke: var(--seam); stroke-width: 1.4; stroke-dasharray: 6 3; }
 .part.estimate .mount { stroke-dasharray: 5 3; fill-opacity: 0.45; }
 .part .mount-cells { fill: none; stroke: var(--accent); stroke-width: 1; stroke-dasharray: 3 3; pointer-events: none; }
 .part-dim { font-size: 9px; pointer-events: none; }
+/* Where a long straight is cut into printable segments. */
+.part line.cut { stroke: #fff; stroke-width: 2; stroke-dasharray: 3 2; pointer-events: none; }
 .part .envelope { fill: none; stroke-width: 1.2; stroke-dasharray: 4 3; }
 .part.warning .envelope { stroke: var(--warning) !important; stroke-width: 2; fill: var(--warning); fill-opacity: 0.12; }
 .part.warning .mount { stroke: var(--warning); stroke-width: 2.5; }

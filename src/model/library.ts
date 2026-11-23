@@ -126,7 +126,7 @@ export const GENERATORS: Generator[] = [
     color: "#6a5acd",
     params: [
       width(),
-      { name: "Channel_Length_Units", label: "Length (units)", kind: "int", default: 5, min: 1, max: 30 },
+      { name: "Channel_Length_Units", label: "Length (units)", kind: "int", default: 5, min: 1, max: 400},
       height,
       mountingFor(true),
     ],
@@ -346,7 +346,7 @@ export const OG_GENERATORS: Generator[] = [
     sourceUrl: OG_URL,
     color: "#0d9488",
     onePiece: true,
-    params: [{ name: "Length_Units", label: "Length (cells)", kind: "int", default: 5, min: 1, max: 30 }],
+    params: [{ name: "Length_Units", label: "Length (cells)", kind: "int", default: 5, min: 1, max: 400}],
     footprint: (p, pitch) => fixedFootprint(26.4, int(p.Length_Units, 5) * 28, 22, pitch),
     notes: OG_NOTE,
   },
@@ -440,7 +440,7 @@ export const MK_GENERATORS: Generator[] = [
     name: "Monokini straight",
     scadFile: "monokini_I_channel.scad",
     color: "#0f766e",
-    params: [mkWidth(), mkLen("Channel_Length_Units", "Length (cells)", 5), mkHeight],
+    params: [mkWidth(), { ...mkLen("Channel_Length_Units", "Length (cells)", 5), max: 400}, mkHeight],
     footprint: (p) => mkFp(int(p.Channel_Width_in_Units), int(p.Channel_Length_Units, 5), p),
   }),
   mk({

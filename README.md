@@ -31,6 +31,16 @@ One-time setup: in the repo, **Settings → Pages → Build and deployment → S
 - Drag, rotate (R), nudge (arrows), duplicate (Ctrl/Cmd+D), delete.
 - Autosave in the browser, JSON export/import.
 
+## Printer and long runs
+
+The **Printer** panel picks the printer the parts are cut and packed for: Bambu Lab X2D (the default), X1C/X1E, P1S/P1P/P2S, A1, A1 mini, H2D, H2S; Prusa MK4/MK4S, Core One, MINI+, XL; Creality K1, K1 Max, K2 Plus, Ender-3 V3; or a custom bed size. Sizes are in `src/model/printers.ts`. It's stored with the layout and is the one setting behind run cuts, tile sizes and plate packing. A 1 mm clearance is kept from each bed edge.
+
+**Long runs.** Straights (Monokini, clip-on, QuackWorks I) can be drawn up to 400 cells long. On export each run is cut into the fewest segments that fit the bed, as even as possible (a 30-cell run on the X2D prints as 8 + 8 + 7 + 7), so a run gives at most two segment lengths. The board draws the cuts as dashed lines, and the parts list says how each run was cut. "Lay long straights corner to corner" lets segments run diagonally across the bed (11 cells instead of 9 on a 256 mm bed).
+
+How segments join: butt joints on cell lines. None of these straights has a joiner of its own: David D's clip-on straight is a 1-cell piece repeated every 28 mm, Monokini's ends sit flush on a cell line, and the QuackWorks I channel is plain along its length. Each segment clips (or snaps, or screws) to the grid by itself, so the grid holds the run in line and no connector needs printing.
+
+Any other generated part bigger than the bed is flagged with a "doesn't fit the bed" warning. Item holders print on their backer, so their bed footprint isn't checked.
+
 ## STL export
 
 The Export STLs panel renders every placed Underware part in the browser with OpenSCAD compiled to WebAssembly (`openscad-wasm-prebuilt`, Manifold backend) and BOSL2, then downloads a zip:

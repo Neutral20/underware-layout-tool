@@ -4,6 +4,7 @@ import { buildExportPlan, partsCsv, type RenderJob } from "../render/plan";
 import { MOUNT_STYLES, mountById } from "../render/mounts";
 import { cancelAll, render } from "../render/service";
 import type { Board, PartType } from "../model/types";
+import { printerFor } from "../model/printers";
 
 type Status = { state: "queued" } | { state: "rendering" } | { state: "done"; ms: number; bytes: number } | { state: "failed"; error: string };
 
@@ -18,6 +19,10 @@ All licensed CC BY-NC-SA 4.0. Rendered with OpenSCAD and BOSL2.
 
 parts.csv lists each file, how many to print, and the parameters used.
 File names end in _xN where N is the quantity to print.
+
+Straights longer than the printer's bed are cut into segments on cell
+lines. Print every segment listed and lay them end to end; each one clips
+(or snaps) to the grid on its own, so no joiner is needed.
 `;
 
 interface Props {
@@ -103,6 +108,13 @@ export function ExportPanel({ board, partTypes, onMount }: Props) {
             {plan.jobs.length} unique STL{plan.jobs.length === 1 ? "" : "s"} to render, {totalPieces} pieces to print.
             {board.pitchMm === 28 ? " Channels render at the 28 mm openGrid pitch." : ""} Renders already done this session are reused.
           </p>
+          {plan.runs.length ? (
+            <p className="muted">
+              Cut to fit the {printerFor(board.printer).name}:{" "}
+              {plan.runs.map((r) => `${r.name} ${r.lengthCells} cells → ${r.segments.join(" + ")}${r.quantity > 1 ? ` (×${r.quantity})` : ""}`).join("; ")}.
+              Segments butt together on cell lines.
+            </p>
+          ) : null}
           {plan.manual.length ? (
             <p className="muted">Custom parts aren't generated: {plan.manual.map((m) => `${m.name} ×${m.quantity}`).join(", ")}.</p>
           ) : null}
